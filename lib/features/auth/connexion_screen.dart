@@ -4,6 +4,7 @@ import '../../core/constants/app_colors.dart';
 import '../../shared/widgets/app_text_field.dart';
 import '../../shared/widgets/primary_button.dart';
 import '../../shared/navigation/main_shell.dart';
+import '../driver/driver_main_screen.dart';
 
 class ConnexionScreen extends StatefulWidget {
   const ConnexionScreen({super.key});
@@ -25,9 +26,31 @@ class _ConnexionScreenState extends State<ConnexionScreen> {
   }
 
   void _seConnecter() {
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const MainShell()),
-    );
+    final email = _emailCtrl.text.trim();
+    final password = _mdpCtrl.text.trim();
+
+    if (email == 'user' && password == '1234') {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => const MainShell()),
+      );
+    } else if (email == 'chauffeur' && password == '1234') {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => const DriverMainScreen()),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Identifiants incorrects',
+            style: GoogleFonts.plusJakartaSans(color: Colors.white),
+          ),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          margin: const EdgeInsets.all(16),
+        ),
+      );
+    }
   }
 
   @override

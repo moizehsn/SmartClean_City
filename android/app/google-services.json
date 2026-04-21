@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "555793029436",
+    "project_id": "smartcleancity-30ebc",
+    "storage_bucket": "smartcleancity-30ebc.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:555793029436:android:61aa4eb9f765b6ca81a639",
+        "android_client_info": {
+          "package_name": "com.example.smartclean"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCGtygKXdKrQlQKlmrnV9bkZvCPEqzJ0SU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
