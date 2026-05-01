@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math';
 import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -154,7 +155,10 @@ class _NouveauSignalementScreenState extends State<NouveauSignalementScreen> {
       final String base64String = await _encodeToBase64(File(_image!.path));
 
       // b. Build and send Firestore document
+      final idCourt = '#${1000 + Random().nextInt(9000)}';
       await FirebaseFirestore.instance.collection('signalements').add({
+        'citoyen_id': 'user_mock',
+        'id_court': idCourt,
         'description': 'Rapport citoyen',
         'latitude': _position!.latitude,
         'longitude': _position!.longitude,

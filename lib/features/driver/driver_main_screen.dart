@@ -1,6 +1,7 @@
-import 'dart:ui';
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../../core/constants/app_colors.dart';
 import 'driver_dashboard.dart';
 import 'driver_map.dart';
@@ -8,7 +9,8 @@ import 'driver_history.dart';
 import 'driver_profile.dart';
 
 /// Main navigation shell for the Driver (Chauffeur) role.
-/// Mirrors the Citizen MainShell with an identical glassmorphic bottom nav.
+/// Uses a shared [ValueNotifier<LatLng?>] to let the Dashboard trigger
+/// a map camera animation when a pending mission card is tapped.
 class DriverMainScreen extends StatefulWidget {
   const DriverMainScreen({super.key});
 
@@ -19,12 +21,11 @@ class DriverMainScreen extends StatefulWidget {
 class _DriverMainScreenState extends State<DriverMainScreen> {
   int _currentIndex = 0;
 
-  static const _screens = [
-    DriverDashboard(),
-    DriverMap(),
-    DriverHistory(),
-    DriverProfile(),
-  ];
+  /// Shared notifier: Dashboard writes a LatLng, Map listens and animates.
+  late final ValueNotifier<LatLng?> _focusTarget;
+
+  /// Built once in initState so IndexedStack never recreates the widgets.
+  late final List<Widget> _screens;
 
   static const _navItems = [
     (Icons.dashboard_outlined, Icons.dashboard_rounded, 'Accueil'),
@@ -32,6 +33,27 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
     (Icons.history_outlined, Icons.history_rounded, 'Historique'),
     (Icons.person_outline_rounded, Icons.person_rounded, 'Profil'),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _focusTarget = ValueNotifier(null);
+    _screens = [
+      DriverDashboard(
+        onNavigateToMap: () => setState(() => _currentIndex = 1),
+        focusTarget: _focusTarget,
+      ),
+      DriverMap(focusTarget: _focusTarget),
+      const DriverHistory(),
+      const DriverProfile(),
+    ];
+  }
+
+  @override
+  void dispose() {
+    _focusTarget.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -68,7 +90,7 @@ class _DriverBottomNav extends StatelessWidget {
       child: ClipRRect(
         borderRadius: BorderRadius.circular(28),
         child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+          filter: ui.ImageFilter.blur(sigmaX: 24, sigmaY: 24),
           child: Container(
             height: 68,
             decoration: BoxDecoration(
