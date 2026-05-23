@@ -1,11 +1,67 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../constants/app_colors.dart';
+import '../../main.dart' show localeNotifier;
 
 /// Central theme for SmartClean City — Urban Organicism design system.
-/// Light mode only. Uses Manrope (display/headline) + Plus Jakarta Sans (body/label).
+/// Light mode only.
+///
+/// **Typography strategy:**
+///   - French  → Manrope (display) + Plus Jakarta Sans (body)
+///   - Arabic  → Tajawal (display) + Cairo (body)   — premium Arabic fonts
+///
+/// The [light] getter reads the current locale from [localeNotifier]
+/// so the entire text theme adapts when the user toggles language.
 class AppTheme {
   AppTheme._();
+
+  // ── Helpers — pick font family by locale ────────────────────────────────────
+  static bool get _isArabic => localeNotifier.value.languageCode == 'ar';
+
+  static TextStyle _display(
+    double size,
+    FontWeight weight, {
+    double spacing = 0,
+    Color? color,
+  }) {
+    return _isArabic
+        ? GoogleFonts.tajawal(
+            fontSize: size + 2, // Increased for Arabic readability
+            fontWeight: weight,
+            letterSpacing: spacing,
+            color: color ?? AppColors.onSurface,
+          )
+        : GoogleFonts.manrope(
+            fontSize: size,
+            fontWeight: weight,
+            letterSpacing: spacing,
+            color: color ?? AppColors.onSurface,
+          );
+  }
+
+  static TextStyle _body(
+    double size,
+    FontWeight weight, {
+    double spacing = 0,
+    Color? color,
+    double height = 1.0,
+  }) {
+    return _isArabic
+        ? GoogleFonts.cairo(
+            fontSize: size + 1.5, // Increased for Arabic readability
+            fontWeight: weight,
+            letterSpacing: spacing,
+            color: color ?? AppColors.onSurface,
+            height: height,
+          )
+        : GoogleFonts.plusJakartaSans(
+            fontSize: size,
+            fontWeight: weight,
+            letterSpacing: spacing,
+            color: color ?? AppColors.onSurface,
+            height: height,
+          );
+  }
 
   static ThemeData get light {
     final colorScheme = ColorScheme(
@@ -43,98 +99,40 @@ class AppTheme {
       scaffoldBackgroundColor: AppColors.background,
 
       // ─── Typography ────────────────────────────────────────────────────────
-      textTheme: GoogleFonts.plusJakartaSansTextTheme().copyWith(
-        // Display — Manrope
-        displayLarge: GoogleFonts.manrope(
-          fontSize: 57,
-          fontWeight: FontWeight.w700,
-          letterSpacing: -1.14,
-          color: AppColors.onSurface,
-        ),
-        displayMedium: GoogleFonts.manrope(
-          fontSize: 45,
-          fontWeight: FontWeight.w700,
-          letterSpacing: -0.9,
-          color: AppColors.onSurface,
-        ),
-        displaySmall: GoogleFonts.manrope(
-          fontSize: 36,
-          fontWeight: FontWeight.w700,
-          letterSpacing: -0.72,
-          color: AppColors.onSurface,
-        ),
-        // Headline — Manrope
-        headlineLarge: GoogleFonts.manrope(
-          fontSize: 32,
-          fontWeight: FontWeight.w600,
-          letterSpacing: -0.5,
-          color: AppColors.onSurface,
-        ),
-        headlineMedium: GoogleFonts.manrope(
-          fontSize: 28,
-          fontWeight: FontWeight.w600,
-          letterSpacing: -0.3,
-          color: AppColors.onSurface,
-        ),
-        headlineSmall: GoogleFonts.manrope(
-          fontSize: 24,
-          fontWeight: FontWeight.w600,
-          color: AppColors.onSurface,
-        ),
-        // Title — Plus Jakarta Sans
-        titleLarge: GoogleFonts.plusJakartaSans(
-          fontSize: 22,
-          fontWeight: FontWeight.w600,
-          color: AppColors.onSurface,
-        ),
-        titleMedium: GoogleFonts.plusJakartaSans(
-          fontSize: 16,
-          fontWeight: FontWeight.w600,
-          letterSpacing: 0.15,
-          color: AppColors.onSurface,
-        ),
-        titleSmall: GoogleFonts.plusJakartaSans(
-          fontSize: 14,
-          fontWeight: FontWeight.w500,
-          letterSpacing: 0.1,
-          color: AppColors.onSurface,
-        ),
-        // Body — Plus Jakarta Sans
-        bodyLarge: GoogleFonts.plusJakartaSans(
-          fontSize: 16,
-          fontWeight: FontWeight.w400,
-          letterSpacing: 0.15,
-          color: AppColors.onSurface,
-        ),
-        bodyMedium: GoogleFonts.plusJakartaSans(
-          fontSize: 14,
-          fontWeight: FontWeight.w400,
-          letterSpacing: 0.25,
-          color: AppColors.onSurface,
-        ),
-        bodySmall: GoogleFonts.plusJakartaSans(
-          fontSize: 12,
-          fontWeight: FontWeight.w400,
-          letterSpacing: 0.4,
+      textTheme: TextTheme(
+        // Display — Manrope / Tajawal
+        displayLarge: _display(57, FontWeight.w700, spacing: -1.14),
+        displayMedium: _display(45, FontWeight.w700, spacing: -0.9),
+        displaySmall: _display(36, FontWeight.w700, spacing: -0.72),
+        // Headline — Manrope / Tajawal
+        headlineLarge: _display(32, FontWeight.w600, spacing: -0.5),
+        headlineMedium: _display(28, FontWeight.w600, spacing: -0.3),
+        headlineSmall: _display(24, FontWeight.w600),
+        // Title — Plus Jakarta Sans / Cairo
+        titleLarge: _body(22, FontWeight.w600),
+        titleMedium: _body(16, FontWeight.w600, spacing: 0.15),
+        titleSmall: _body(14, FontWeight.w500, spacing: 0.1),
+        // Body — Plus Jakarta Sans / Cairo
+        bodyLarge: _body(16, FontWeight.w400, spacing: 0.15),
+        bodyMedium: _body(14, FontWeight.w400, spacing: 0.25),
+        bodySmall: _body(
+          12,
+          FontWeight.w400,
+          spacing: 0.4,
           color: AppColors.onSurfaceVariant,
         ),
-        // Label — Plus Jakarta Sans
-        labelLarge: GoogleFonts.plusJakartaSans(
-          fontSize: 14,
-          fontWeight: FontWeight.w600,
-          letterSpacing: 0.1,
-          color: AppColors.onSurface,
-        ),
-        labelMedium: GoogleFonts.plusJakartaSans(
-          fontSize: 12,
-          fontWeight: FontWeight.w500,
-          letterSpacing: 0.5,
+        // Label — Plus Jakarta Sans / Cairo
+        labelLarge: _body(14, FontWeight.w600, spacing: 0.1),
+        labelMedium: _body(
+          12,
+          FontWeight.w500,
+          spacing: 0.5,
           color: AppColors.onSurfaceVariant,
         ),
-        labelSmall: GoogleFonts.plusJakartaSans(
-          fontSize: 11,
-          fontWeight: FontWeight.w500,
-          letterSpacing: 0.5,
+        labelSmall: _body(
+          11,
+          FontWeight.w500,
+          spacing: 0.5,
           color: AppColors.onSurfaceVariant,
         ),
       ),
@@ -163,13 +161,15 @@ class AppTheme {
           borderRadius: BorderRadius.circular(16),
           borderSide: const BorderSide(color: AppColors.error, width: 1),
         ),
-        hintStyle: GoogleFonts.plusJakartaSans(
-          fontSize: 14,
+        hintStyle: _body(
+          14,
+          FontWeight.w400,
           color: AppColors.onSurfaceVariant,
-          fontWeight: FontWeight.w400,
         ),
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 20,
+          vertical: 18,
+        ),
       ),
 
       // ─── Elevated Button ───────────────────────────────────────────────────
@@ -181,11 +181,7 @@ class AppTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(100),
           ),
-          textStyle: GoogleFonts.plusJakartaSans(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-            letterSpacing: 0.1,
-          ),
+          textStyle: _body(16, FontWeight.w600, spacing: 0.1),
           elevation: 0,
         ),
       ),
@@ -194,10 +190,7 @@ class AppTheme {
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
           foregroundColor: AppColors.primary,
-          textStyle: GoogleFonts.plusJakartaSans(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-          ),
+          textStyle: _body(14, FontWeight.w600),
         ),
       ),
 
@@ -207,11 +200,7 @@ class AppTheme {
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         scrolledUnderElevation: 0,
-        titleTextStyle: GoogleFonts.manrope(
-          fontSize: 20,
-          fontWeight: FontWeight.w600,
-          color: AppColors.onSurface,
-        ),
+        titleTextStyle: _display(20, FontWeight.w600),
         iconTheme: const IconThemeData(color: AppColors.onSurface),
       ),
 
@@ -219,13 +208,8 @@ class AppTheme {
       chipTheme: ChipThemeData(
         backgroundColor: AppColors.surfaceContainerLow,
         selectedColor: AppColors.primaryFixed,
-        labelStyle: GoogleFonts.plusJakartaSans(
-          fontSize: 13,
-          fontWeight: FontWeight.w500,
-        ),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(100),
-        ),
+        labelStyle: _body(13, FontWeight.w500),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(100)),
         side: BorderSide.none,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       ),
@@ -234,9 +218,7 @@ class AppTheme {
       cardTheme: CardThemeData(
         color: AppColors.surfaceContainerLowest,
         elevation: 0,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(24),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         margin: EdgeInsets.zero,
       ),
 

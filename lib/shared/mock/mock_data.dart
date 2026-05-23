@@ -112,12 +112,17 @@ class MockMessage {
   final String texte;
   final bool isUser;
   final String heure;
-  const MockMessage({required this.texte, required this.isUser, required this.heure});
+  const MockMessage({
+    required this.texte,
+    required this.isUser,
+    required this.heure,
+  });
 }
 
 const List<MockMessage> kMockMessages = [
   MockMessage(
-    texte: "Bonjour ! Je suis Eco-Bot 🌿 Je peux vous aider à signaler des déchets ou répondre à vos questions sur la propreté urbaine à Laghouat.",
+    texte:
+        "Bonjour ! Je suis Eco-Bot 🌿 Je peux vous aider à signaler des déchets ou répondre à vos questions sur la propreté urbaine à Laghouat.",
     isUser: false,
     heure: '09:10',
   ),
@@ -127,7 +132,8 @@ const List<MockMessage> kMockMessages = [
     heure: '09:12',
   ),
   MockMessage(
-    texte: "Voici le point de collecte de tri sélectif le plus proche de votre position :\n\n📍 Point de Tri — Quartier Sud\nÀ 450m  •  Verre, Plastique",
+    texte:
+        "Voici le point de collecte de tri sélectif le plus proche de votre position :\n\n📍 Point de Tri — Quartier Sud\nÀ 450m  •  Verre, Plastique",
     isUser: false,
     heure: '09:12',
   ),

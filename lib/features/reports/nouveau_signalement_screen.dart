@@ -2,12 +2,16 @@ import 'dart:convert';
 import 'dart:math';
 import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/l10n/app_localizations.dart';
+import '../../core/services/ai_vision_service.dart';
+import '../../core/services/geo_utils.dart';
 import '../../shared/widgets/primary_button.dart';
 
 // ─── Location state enum ──────────────────────────────────────────────────────
@@ -33,6 +37,10 @@ class _NouveauSignalementScreenState extends State<NouveauSignalementScreen> {
 
   // ── Submission state ─────────────────────────────────────────────────────
   bool _isSubmitting = false;
+
+  // ── Validation phase for overlay UI ──────────────────────────────────────
+  /// null = idle, 'gps' = checking duplicates, 'ai' = AI analysis, 'uploading'
+  String? _validationPhase;
 
   // ── Derived: both conditions met? ────────────────────────────────────────
   bool get _canSubmit =>
@@ -65,7 +73,11 @@ class _NouveauSignalementScreenState extends State<NouveauSignalementScreen> {
     } catch (e) {
       setState(() => _isCapturing = false);
       if (mounted) {
-        _showSnackBar('Erreur caméra : ${e.toString()}', isError: true);
+        final l = AppLocalizations.of(context);
+        _showSnackBar(
+          '${l.t('erreur_inconnue')} : ${e.toString()}',
+          isError: true,
+        );
       }
     }
   }
@@ -85,8 +97,44 @@ class _NouveauSignalementScreenState extends State<NouveauSignalementScreen> {
       // ── a. Check / request service ───────────────────────────────────────
       final serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
-        throw Exception(
-            'Le service de localisation est désactivé sur cet appareil.');
+        if (!mounted) return;
+        final shouldOpen = await showDialog<bool>(
+          context: context,
+          barrierDismissible: false,
+          builder: (ctx) => AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            title: const Row(
+              children: [
+                Icon(Icons.location_off_rounded, color: Color(0xFFE65100)),
+                SizedBox(width: 10),
+                Text('GPS désactivé'),
+              ],
+            ),
+            content: const Text(
+              'Veuillez activer le GPS pour continuer.\nLe service de localisation est nécessaire pour géolocaliser votre signalement.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(false),
+                child: const Text('Annuler'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.of(ctx).pop(true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF00450D),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                child: const Text('Ouvrir les paramètres'),
+              ),
+            ],
+          ),
+        );
+        if (shouldOpen == true) {
+          await Geolocator.openLocationSettings();
+        }
+        setState(() => _locationState = _LocationState.idle);
+        return;
       }
 
       // ── b. Check / request permission ───────────────────────────────────
@@ -94,12 +142,13 @@ class _NouveauSignalementScreenState extends State<NouveauSignalementScreen> {
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
         if (permission == LocationPermission.denied) {
-          throw Exception('Permission de localisation refusée.');
+          final l = AppLocalizations.of(context);
+          throw Exception(l.t('permission_refusee'));
         }
       }
       if (permission == LocationPermission.deniedForever) {
-        throw Exception(
-            'Permission de localisation définitivement refusée. Activez-la dans les paramètres.');
+        final l = AppLocalizations.of(context);
+        throw Exception(l.t('permission_definitivement'));
       }
 
       // ── c. Get position ──────────────────────────────────────────────────
@@ -122,8 +171,7 @@ class _NouveauSignalementScreenState extends State<NouveauSignalementScreen> {
         final parts = <String>[
           if (p.street != null && p.street!.isNotEmpty) p.street!,
           if (p.locality != null && p.locality!.isNotEmpty) p.locality!,
-          if (p.administrativeArea != null &&
-              p.administrativeArea!.isNotEmpty)
+          if (p.administrativeArea != null && p.administrativeArea!.isNotEmpty)
             p.administrativeArea!,
         ];
         if (parts.isNotEmpty) address = parts.join(', ');
@@ -137,27 +185,69 @@ class _NouveauSignalementScreenState extends State<NouveauSignalementScreen> {
     } catch (e) {
       setState(() => _locationState = _LocationState.error);
       if (mounted) {
-        _showSnackBar('Erreur GPS : ${e.toString()}', isError: true);
+        final l = AppLocalizations.of(context);
+        _showSnackBar(
+          '${l.t('erreur_inconnue')} : ${e.toString()}',
+          isError: true,
+        );
       }
     }
   }
 
   // =========================================================================
-  // 3. SUBMISSION — encode + send to Firestore
+  // 3. SUBMISSION — GPS check → AI validation → Firestore
   // =========================================================================
   Future<void> _soumettre() async {
     if (!_canSubmit) return;
+    final l = AppLocalizations.of(context);
 
-    setState(() => _isSubmitting = true);
+    setState(() {
+      _isSubmitting = true;
+      _validationPhase = 'gps';
+    });
 
     try {
-      // a. Encode image to Base64
-      final String base64String = await _encodeToBase64(File(_image!.path));
+      // ── Phase 1: GPS Duplicate Prevention ──────────────────────────────
+      final isDuplicate = await GeoUtils.isDuplicateLocation(
+        _position!.latitude,
+        _position!.longitude,
+      );
+      if (!mounted) return;
+      if (isDuplicate) {
+        setState(() { _isSubmitting = false; _validationPhase = null; });
+        _showRejectionDialog(
+          icon: Icons.location_on_rounded,
+          color: const Color(0xFFE65100),
+          title: l.t('doublon_titre'),
+          message: l.t('doublon_message'),
+          buttonLabel: l.t('compris'),
+        );
+        return;
+      }
 
-      // b. Build and send Firestore document
+      // ── Phase 2: AI Image Validation ───────────────────────────────────
+      setState(() => _validationPhase = 'ai');
+      final imageBytes = await File(_image!.path).readAsBytes();
+      final isGarbage = await AiVisionService.validateGarbageImage(imageBytes);
+      if (!mounted) return;
+      if (!isGarbage) {
+        setState(() { _isSubmitting = false; _validationPhase = null; });
+        _showRejectionDialog(
+          icon: Icons.camera_alt_rounded,
+          color: AppColors.error,
+          title: l.t('ia_rejet_citoyen_titre'),
+          message: l.t('ia_rejet_citoyen_message'),
+          buttonLabel: l.t('reessayer'),
+        );
+        return;
+      }
+
+      // ── Phase 3: Upload to Firestore ───────────────────────────────────
+      setState(() => _validationPhase = 'uploading');
+      final String base64String = base64Encode(imageBytes);
       final idCourt = '#${1000 + Random().nextInt(9000)}';
       await FirebaseFirestore.instance.collection('signalements').add({
-        'citoyen_id': 'user_mock',
+        'citoyen_id': FirebaseAuth.instance.currentUser?.uid ?? 'unknown',
         'id_court': idCourt,
         'description': 'Rapport citoyen',
         'latitude': _position!.latitude,
@@ -165,21 +255,23 @@ class _NouveauSignalementScreenState extends State<NouveauSignalementScreen> {
         'adresse_lisible': _readableAddress!,
         'photo_base64': base64String,
         'statut': 'en attente',
+        'chauffeur_id': '', // Empty = unassigned; visible in all drivers' "Nouveaux" tab.
         'timestamp': FieldValue.serverTimestamp(),
       });
 
-      // c. Success
       if (mounted) {
-        _showSnackBar('Signalement envoyé avec succès !', isError: false);
+        _showSnackBar('✓', isError: false);
         Navigator.of(context).pop();
       }
     } catch (e) {
       if (mounted) {
-        _showSnackBar('Erreur lors de l\'envoi : ${e.toString()}',
-            isError: true);
+        _showSnackBar(
+          '${l.t('erreur_inconnue')} : ${e.toString()}',
+          isError: true,
+        );
       }
     } finally {
-      if (mounted) setState(() => _isSubmitting = false);
+      if (mounted) setState(() { _isSubmitting = false; _validationPhase = null; });
     }
   }
 
@@ -202,20 +294,119 @@ class _NouveauSignalementScreenState extends State<NouveauSignalementScreen> {
     );
   }
 
+  void _showRejectionDialog({
+    required IconData icon,
+    required Color color,
+    required String title,
+    required String message,
+    required String buttonLabel,
+  }) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        backgroundColor: AppColors.surfaceContainerLowest,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 28, 24, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, color: color, size: 32),
+              ),
+              const SizedBox(height: 18),
+              Text(
+                title,
+                style: GoogleFonts.manrope(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.onSurface,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 10),
+              Text(
+                message,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 14,
+                  color: AppColors.onSurfaceVariant,
+                  height: 1.6,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 22),
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: color,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(100),
+                    ),
+                    elevation: 0,
+                  ),
+                  child: Text(
+                    buttonLabel,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   // =========================================================================
   // BUILD
   // =========================================================================
   @override
   Widget build(BuildContext context) {
     final bool isBusy = _isCapturing || _isSubmitting;
+    final l = AppLocalizations.of(context);
 
-    return Scaffold(
+    // ── Phase label for overlay ──────────────────────────────────────────
+    String _phaseLabel() {
+      switch (_validationPhase) {
+        case 'gps':       return l.t('verification_gps');
+        case 'ai':        return l.t('analyse_ia_cours');
+        case 'uploading': return l.t('envoi_signalement');
+        default:          return '';
+      }
+    }
+
+    IconData _phaseIcon() {
+      switch (_validationPhase) {
+        case 'gps':       return Icons.satellite_alt_rounded;
+        case 'ai':        return Icons.psychology_rounded;
+        case 'uploading': return Icons.cloud_upload_rounded;
+        default:          return Icons.hourglass_empty;
+      }
+    }
+
+    return Stack(
+      children: [
+    Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
         backgroundColor: AppColors.background,
         elevation: 0,
         title: Text(
-          'Nouveau Signalement',
+          l.t('nouveau_signalement'),
           style: GoogleFonts.manrope(
             fontSize: 18,
             fontWeight: FontWeight.w700,
@@ -230,7 +421,7 @@ class _NouveauSignalementScreenState extends State<NouveauSignalementScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // ── Step label ────────────────────────────────────────────────
-            _StepLabel(number: '1', label: 'Prenez une photo'),
+            _StepLabel(number: '1', label: l.t('prenez_une_photo')),
             const SizedBox(height: 10),
 
             // ── Camera zone ───────────────────────────────────────────────
@@ -238,11 +429,12 @@ class _NouveauSignalementScreenState extends State<NouveauSignalementScreen> {
               image: _image,
               isLoading: _isCapturing,
               onTap: isBusy ? null : _prendrePhoto,
+              l: l,
             ),
             const SizedBox(height: 24),
 
             // ── Step label ────────────────────────────────────────────────
-            _StepLabel(number: '2', label: 'Détectez votre position'),
+            _StepLabel(number: '2', label: l.t('detectez_position')),
             const SizedBox(height: 10),
 
             // ── Location zone ─────────────────────────────────────────────
@@ -252,6 +444,7 @@ class _NouveauSignalementScreenState extends State<NouveauSignalementScreen> {
               onTap: (isBusy || _locationState == _LocationState.loading)
                   ? null
                   : _detecterPosition,
+              l: l,
             ),
             const SizedBox(height: 12),
 
@@ -265,16 +458,20 @@ class _NouveauSignalementScreenState extends State<NouveauSignalementScreen> {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(Icons.info_outline_rounded,
-                      color: AppColors.primary, size: 17),
+                  const Icon(
+                    Icons.info_outline_rounded,
+                    color: AppColors.primary,
+                    size: 17,
+                  ),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      'Photo + localisation suffisent — aucune description requise.',
+                      l.t('photo_plus_localisation'),
                       style: GoogleFonts.plusJakartaSans(
-                          fontSize: 13,
-                          color: AppColors.onSurface,
-                          height: 1.5),
+                        fontSize: 13,
+                        color: AppColors.onSurface,
+                        height: 1.5,
+                      ),
                     ),
                   ),
                 ],
@@ -285,7 +482,7 @@ class _NouveauSignalementScreenState extends State<NouveauSignalementScreen> {
             // ── Submit button (strict validation) ─────────────────────────
             _canSubmit
                 ? PrimaryButton(
-                    label: 'Soumettre le signalement',
+                    label: l.t('soumettre_signalement'),
                     onPressed: _soumettre,
                     isLoading: _isSubmitting,
                     icon: Icons.send_rounded,
@@ -293,11 +490,82 @@ class _NouveauSignalementScreenState extends State<NouveauSignalementScreen> {
                 : _DisabledSubmitButton(
                     hasPhoto: _image != null,
                     hasLocation: _locationState == _LocationState.success,
+                    l: l,
                   ),
           ],
         ),
       ),
-    );
+    ),
+
+    // ── Validation overlay ────────────────────────────────────────────
+    if (_validationPhase != null)
+      Positioned.fill(
+        child: Container(
+          color: Colors.black.withOpacity(0.55),
+          child: Center(
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 48),
+              padding: const EdgeInsets.symmetric(vertical: 36, horizontal: 28),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceContainerLowest,
+                borderRadius: BorderRadius.circular(28),
+                boxShadow: AppColors.botanicalShadow,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TweenAnimationBuilder<double>(
+                    tween: Tween(begin: 0.8, end: 1.2),
+                    duration: const Duration(milliseconds: 800),
+                    curve: Curves.easeInOut,
+                    builder: (context, scale, child) {
+                      return Transform.scale(scale: scale, child: child);
+                    },
+                    child: Container(
+                      width: 64,
+                      height: 64,
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withOpacity(0.12),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        _phaseIcon(),
+                        color: AppColors.primary,
+                        size: 30,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 22),
+                  const SizedBox(
+                    width: 28,
+                    height: 28,
+                    child: CircularProgressIndicator(
+                      color: AppColors.primary,
+                      strokeWidth: 2.5,
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 300),
+                    child: Text(
+                      _phaseLabel(),
+                      key: ValueKey(_validationPhase),
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.onSurface,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    ], // Stack children
+    ); // Stack
   }
 }
 
@@ -349,11 +617,13 @@ class _CameraZone extends StatelessWidget {
     required this.image,
     required this.isLoading,
     required this.onTap,
+    required this.l,
   });
 
   final XFile? image;
   final bool isLoading;
   final VoidCallback? onTap;
+  final AppLocalizations l;
 
   @override
   Widget build(BuildContext context) {
@@ -364,8 +634,9 @@ class _CameraZone extends StatelessWidget {
           Stack(
             children: [
               ClipRRect(
-                borderRadius:
-                    const BorderRadius.vertical(top: Radius.circular(20)),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(20),
+                ),
                 child: Image.file(
                   File(image!.path),
                   width: double.infinity,
@@ -381,7 +652,9 @@ class _CameraZone extends StatelessWidget {
                   onTap: onTap,
                   child: Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 8),
+                      horizontal: 14,
+                      vertical: 8,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.black.withOpacity(0.45),
                       borderRadius: BorderRadius.circular(20),
@@ -389,15 +662,19 @@ class _CameraZone extends StatelessWidget {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.camera_alt_outlined,
-                            color: Colors.white, size: 14),
+                        const Icon(
+                          Icons.camera_alt_outlined,
+                          color: Colors.white,
+                          size: 14,
+                        ),
                         const SizedBox(width: 5),
                         Text(
-                          'Reprendre',
+                          l.t('reprendre'),
                           style: GoogleFonts.plusJakartaSans(
-                              fontSize: 12,
-                              color: Colors.white,
-                              fontWeight: FontWeight.w500),
+                            fontSize: 12,
+                            color: Colors.white,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
                       ],
                     ),
@@ -409,20 +686,21 @@ class _CameraZone extends StatelessWidget {
           // Green validation bar
           Container(
             width: double.infinity,
-            padding:
-                const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
             decoration: const BoxDecoration(
               color: AppColors.primary,
-              borderRadius:
-                  BorderRadius.vertical(bottom: Radius.circular(20)),
+              borderRadius: BorderRadius.vertical(bottom: Radius.circular(20)),
             ),
             child: Row(
               children: [
-                const Icon(Icons.check_circle_rounded,
-                    color: Colors.white, size: 18),
+                const Icon(
+                  Icons.check_circle_rounded,
+                  color: Colors.white,
+                  size: 18,
+                ),
                 const SizedBox(width: 8),
                 Text(
-                  '✓ Photo capturée — Signalement valide',
+                  l.t('photo_capturee_valide'),
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
@@ -446,7 +724,9 @@ class _CameraZone extends StatelessWidget {
           color: AppColors.surfaceContainerLow,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-              color: AppColors.outlineVariant.withOpacity(0.4), width: 2),
+            color: AppColors.outlineVariant.withOpacity(0.4),
+            width: 2,
+          ),
         ),
         child: isLoading
             ? const Center(
@@ -465,12 +745,15 @@ class _CameraZone extends StatelessWidget {
                       color: AppColors.primaryFixed.withOpacity(0.3),
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(Icons.camera_alt_outlined,
-                        color: AppColors.primary, size: 28),
+                    child: const Icon(
+                      Icons.camera_alt_outlined,
+                      color: AppColors.primary,
+                      size: 28,
+                    ),
                   ),
                   const SizedBox(height: 12),
                   Text(
-                    'Appuyez pour prendre une photo',
+                    l.t('appuyez_pour_photo'),
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 14,
                       fontWeight: FontWeight.w500,
@@ -479,7 +762,7 @@ class _CameraZone extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'des déchets à signaler',
+                    l.t('des_dechets'),
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 13,
                       color: AppColors.onSurfaceVariant,
@@ -500,11 +783,13 @@ class _LocationZone extends StatelessWidget {
     required this.state,
     required this.address,
     required this.onTap,
+    required this.l,
   });
 
   final _LocationState state;
   final String? address;
   final VoidCallback? onTap;
+  final AppLocalizations l;
 
   @override
   Widget build(BuildContext context) {
@@ -516,8 +801,10 @@ class _LocationZone extends StatelessWidget {
         decoration: BoxDecoration(
           color: AppColors.surfaceContainerLow,
           borderRadius: BorderRadius.circular(20),
-          border:
-              Border.all(color: AppColors.primary.withOpacity(0.4), width: 2),
+          border: Border.all(
+            color: AppColors.primary.withOpacity(0.4),
+            width: 2,
+          ),
         ),
         child: Row(
           children: [
@@ -528,8 +815,11 @@ class _LocationZone extends StatelessWidget {
                 color: AppColors.primary.withOpacity(0.1),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.check_circle,
-                  color: AppColors.primary, size: 26),
+              child: const Icon(
+                Icons.check_circle,
+                color: AppColors.primary,
+                size: 26,
+              ),
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -537,7 +827,7 @@ class _LocationZone extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Position détectée',
+                    l.t('position_detectee'),
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 11,
                       fontWeight: FontWeight.w500,
@@ -565,8 +855,11 @@ class _LocationZone extends StatelessWidget {
                   color: AppColors.primaryFixed.withOpacity(0.3),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.refresh_rounded,
-                    color: AppColors.primary, size: 18),
+                child: const Icon(
+                  Icons.refresh_rounded,
+                  color: AppColors.primary,
+                  size: 18,
+                ),
               ),
             ),
           ],
@@ -622,8 +915,8 @@ class _LocationZone extends StatelessWidget {
                   const SizedBox(height: 12),
                   Text(
                     state == _LocationState.error
-                        ? 'Échec — Appuyez pour réessayer'
-                        : 'Appuyez pour détecter votre position',
+                        ? l.t('echec_reessayer')
+                        : l.t('appuyez_pour_position'),
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 14,
                       fontWeight: FontWeight.w500,
@@ -644,15 +937,17 @@ class _DisabledSubmitButton extends StatelessWidget {
   const _DisabledSubmitButton({
     required this.hasPhoto,
     required this.hasLocation,
+    required this.l,
   });
 
   final bool hasPhoto;
   final bool hasLocation;
+  final AppLocalizations l;
 
   String get _hint {
-    if (!hasPhoto && !hasLocation) return 'Photo et position requises';
-    if (!hasPhoto) return 'Photo requise';
-    return 'Position GPS requise';
+    if (!hasPhoto && !hasLocation) return l.t('photo_et_position_requises');
+    if (!hasPhoto) return l.t('photo_requise');
+    return l.t('position_requise');
   }
 
   @override
@@ -669,12 +964,14 @@ class _DisabledSubmitButton extends StatelessWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.send_rounded,
-                  color: AppColors.onSurfaceVariant.withOpacity(0.4),
-                  size: 20),
+              Icon(
+                Icons.send_rounded,
+                color: AppColors.onSurfaceVariant.withOpacity(0.4),
+                size: 20,
+              ),
               const SizedBox(width: 8),
               Text(
-                'Soumettre le signalement',
+                l.t('soumettre_signalement'),
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,

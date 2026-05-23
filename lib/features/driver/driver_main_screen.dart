@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/l10n/app_localizations.dart';
 import 'driver_dashboard.dart';
 import 'driver_map.dart';
 import 'driver_history.dart';
@@ -27,12 +28,15 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
   /// Built once in initState so IndexedStack never recreates the widgets.
   late final List<Widget> _screens;
 
-  static const _navItems = [
-    (Icons.dashboard_outlined, Icons.dashboard_rounded, 'Accueil'),
-    (Icons.map_outlined, Icons.map_rounded, 'Carte'),
-    (Icons.history_outlined, Icons.history_rounded, 'Historique'),
-    (Icons.person_outline_rounded, Icons.person_rounded, 'Profil'),
+  // Icon pairs — labels built from l10n at build time.
+  static const _navIcons = [
+    (Icons.dashboard_outlined, Icons.dashboard_rounded),
+    (Icons.map_outlined, Icons.map_rounded),
+    (Icons.history_outlined, Icons.history_rounded),
+    (Icons.person_outline_rounded, Icons.person_rounded),
   ];
+
+  static const _navKeys = ['accueil', 'carte', 'historique', 'profil'];
 
   @override
   void initState() {
@@ -57,14 +61,23 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+
+    // Build nav items with translated labels.
+    final navItems = List.generate(_navIcons.length, (i) {
+      final (icon, activeIcon) = _navIcons[i];
+      return (icon, activeIcon, l.t(_navKeys[i]));
+    });
+
     return Scaffold(
       extendBody: true,
       backgroundColor: AppColors.background,
       body: IndexedStack(index: _currentIndex, children: _screens),
       bottomNavigationBar: _DriverBottomNav(
         currentIndex: _currentIndex,
-        items: _navItems,
+        items: navItems,
         onTap: (i) => setState(() => _currentIndex = i),
+        isArabic: l.isArabic,
       ),
     );
   }
@@ -76,17 +89,23 @@ class _DriverBottomNav extends StatelessWidget {
     required this.currentIndex,
     required this.items,
     required this.onTap,
+    required this.isArabic,
   });
 
   final int currentIndex;
   final List<(IconData, IconData, String)> items;
   final void Function(int) onTap;
+  final bool isArabic;
 
   @override
   Widget build(BuildContext context) {
     return Padding(
       padding: EdgeInsets.fromLTRB(
-          16, 0, 16, MediaQuery.of(context).padding.bottom + 12),
+        16,
+        0,
+        16,
+        MediaQuery.of(context).padding.bottom + 12,
+      ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(28),
         child: BackdropFilter(
@@ -94,10 +113,12 @@ class _DriverBottomNav extends StatelessWidget {
           child: Container(
             height: 68,
             decoration: BoxDecoration(
-              color: AppColors.surfaceContainerLowest.withOpacity(0.90),
+              color: AppColors.surfaceContainerLowest.withValues(alpha: 0.90),
               borderRadius: BorderRadius.circular(28),
               border: Border.all(
-                  color: AppColors.outlineVariant.withOpacity(0.20), width: 1),
+                color: AppColors.outlineVariant.withValues(alpha: 0.20),
+                width: 1,
+              ),
               boxShadow: AppColors.botanicalShadow,
             ),
             child: Row(
@@ -115,25 +136,32 @@ class _DriverBottomNav extends StatelessWidget {
                           duration: const Duration(milliseconds: 200),
                           transitionBuilder: (c, a) =>
                               ScaleTransition(scale: a, child: c),
-                          child: Icon(isActive ? activeIcon : icon,
-                              key: ValueKey(isActive),
-                              size: 24,
-                              color: isActive
-                                  ? AppColors.primary
-                                  : AppColors.onSurfaceVariant),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          label,
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 11,
-                            fontWeight: isActive
-                                ? FontWeight.w600
-                                : FontWeight.w400,
+                          child: Icon(
+                            isActive ? activeIcon : icon,
+                            key: ValueKey(isActive),
+                            size: 24,
                             color: isActive
                                 ? AppColors.primary
                                 : AppColors.onSurfaceVariant,
                           ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          label,
+                          style:
+                              (isArabic
+                                      ? GoogleFonts.cairo(fontSize: 11)
+                                      : GoogleFonts.plusJakartaSans(
+                                          fontSize: 11,
+                                        ))
+                                  .copyWith(
+                                    fontWeight: isActive
+                                        ? FontWeight.w600
+                                        : FontWeight.w400,
+                                    color: isActive
+                                        ? AppColors.primary
+                                        : AppColors.onSurfaceVariant,
+                                  ),
                         ),
                       ],
                     ),

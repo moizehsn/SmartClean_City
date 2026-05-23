@@ -1,7 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart' hide TextDirection;
 import '../../core/constants/app_colors.dart';
+import '../../core/l10n/app_localizations.dart';
 import '../../shared/firestore/signalement_model.dart';
 import 'detail_signalement_screen.dart';
 import 'nouveau_signalement_screen.dart';
@@ -16,9 +19,6 @@ class MesSignalementsScreen extends StatefulWidget {
 class _MesSignalementsScreenState extends State<MesSignalementsScreen> {
   int _filterIndex = 0;
 
-  // ── Filter pills ──────────────────────────────────────────────────────────
-  static const _filters = ['Tous', 'En cours', 'Terminés', 'Rejetés'];
-
   // Maps pill index → Firestore statut value (null = Tous = no filter)
   static const _statutMap = <int, String?>{
     0: null,
@@ -29,9 +29,10 @@ class _MesSignalementsScreenState extends State<MesSignalementsScreen> {
 
   // ── Live query ────────────────────────────────────────────────────────────
   Stream<List<Signalement>> get _stream {
+    final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
     Query<Map<String, dynamic>> query = FirebaseFirestore.instance
         .collection('signalements')
-        .where('citoyen_id', isEqualTo: 'user_mock')
+        .where('citoyen_id', isEqualTo: uid)
         .orderBy('timestamp', descending: true);
 
     final statut = _statutMap[_filterIndex];
@@ -40,19 +41,29 @@ class _MesSignalementsScreenState extends State<MesSignalementsScreen> {
     }
 
     return query.snapshots().map(
-          (snap) => snap.docs.map(Signalement.fromFirestore).toList(),
-        );
+      (snap) => snap.docs.map(Signalement.fromFirestore).toList(),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+
+    // Filter pill labels — built from translations each build
+    final filters = [
+      l.t('tous'),
+      l.t('en_cours'),
+      l.t('termines'),
+      l.t('statut_rejete'),
+    ];
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
         backgroundColor: AppColors.background,
         elevation: 0,
         title: Text(
-          'Mes Signalements',
+          l.t('mes_signalements'),
           style: GoogleFonts.manrope(
             fontSize: 20,
             fontWeight: FontWeight.w700,
@@ -64,7 +75,8 @@ class _MesSignalementsScreenState extends State<MesSignalementsScreen> {
             icon: const Icon(Icons.add_rounded, color: AppColors.primary),
             onPressed: () => Navigator.of(context).push(
               MaterialPageRoute(
-                  builder: (_) => const NouveauSignalementScreen()),
+                builder: (_) => const NouveauSignalementScreen(),
+              ),
             ),
           ),
         ],
@@ -72,23 +84,25 @@ class _MesSignalementsScreenState extends State<MesSignalementsScreen> {
 
       body: Column(
         children: [
-          // ── Filter pills ─────────────────────────────────────────────────
+          // ── Filter pills ──────────────────────────────────────────────
           SizedBox(
             height: 48,
             child: ListView.builder(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               scrollDirection: Axis.horizontal,
-              itemCount: _filters.length,
+              itemCount: filters.length,
               itemBuilder: (_, i) {
                 final active = i == _filterIndex;
                 return Padding(
-                  padding: const EdgeInsets.only(right: 8),
+                  padding: const EdgeInsetsDirectional.only(end: 8),
                   child: GestureDetector(
                     onTap: () => setState(() => _filterIndex = i),
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 200),
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 18, vertical: 8),
+                        horizontal: 18,
+                        vertical: 8,
+                      ),
                       decoration: BoxDecoration(
                         color: active
                             ? AppColors.primary
@@ -96,7 +110,7 @@ class _MesSignalementsScreenState extends State<MesSignalementsScreen> {
                         borderRadius: BorderRadius.circular(100),
                       ),
                       child: Text(
-                        _filters[i],
+                        filters[i],
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 13,
                           fontWeight: FontWeight.w500,
@@ -113,19 +127,17 @@ class _MesSignalementsScreenState extends State<MesSignalementsScreen> {
           ),
           const SizedBox(height: 8),
 
-          // ── Live list ────────────────────────────────────────────────────
+          // ── Live list ─────────────────────────────────────────────────
           Expanded(
             child: StreamBuilder<List<Signalement>>(
               stream: _stream,
               builder: (context, snapshot) {
-                // Loading
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(
                     child: CircularProgressIndicator(color: AppColors.primary),
                   );
                 }
 
-                // Error — show full Firestore error so the index URL can be copied
                 if (snapshot.hasError) {
                   return Center(
                     child: Padding(
@@ -137,7 +149,6 @@ class _MesSignalementsScreenState extends State<MesSignalementsScreen> {
 
                 final reports = snapshot.data ?? [];
 
-                // Empty state
                 if (reports.isEmpty) {
                   return Center(
                     child: Padding(
@@ -152,7 +163,7 @@ class _MesSignalementsScreenState extends State<MesSignalementsScreen> {
                           ),
                           const SizedBox(height: 14),
                           Text(
-                            'Aucun signalement',
+                            l.t('aucun_signalement_court'),
                             style: GoogleFonts.manrope(
                               fontSize: 16,
                               fontWeight: FontWeight.w600,
@@ -162,8 +173,8 @@ class _MesSignalementsScreenState extends State<MesSignalementsScreen> {
                           const SizedBox(height: 6),
                           Text(
                             _filterIndex == 0
-                                ? 'Appuyez sur + pour créer votre premier signalement.'
-                                : 'Aucun signalement dans cette catégorie.',
+                                ? l.t('creer_premier')
+                                : l.t('aucun_categorie'),
                             textAlign: TextAlign.center,
                             style: GoogleFonts.plusJakartaSans(
                               fontSize: 13,
@@ -177,7 +188,6 @@ class _MesSignalementsScreenState extends State<MesSignalementsScreen> {
                   );
                 }
 
-                // List
                 return ListView.builder(
                   padding: const EdgeInsets.fromLTRB(20, 4, 20, 110),
                   itemCount: reports.length,
@@ -187,6 +197,7 @@ class _MesSignalementsScreenState extends State<MesSignalementsScreen> {
                       padding: const EdgeInsets.only(bottom: 12),
                       child: _SignalementCard(
                         signalement: s,
+                        l: l,
                         onTap: () => Navigator.of(context).push(
                           MaterialPageRoute(
                             builder: (_) =>
@@ -209,12 +220,141 @@ class _MesSignalementsScreenState extends State<MesSignalementsScreen> {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _SignalementCard extends StatelessWidget {
-  const _SignalementCard({required this.signalement, required this.onTap});
+  const _SignalementCard({
+    required this.signalement,
+    required this.l,
+    required this.onTap,
+  });
   final Signalement signalement;
+  final AppLocalizations l;
   final VoidCallback onTap;
+
+  // ── Confirm + delete ─────────────────────────────────────────────────────
+  Future<void> _confirmCancel(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        backgroundColor: Colors.transparent,
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: AppColors.surfaceContainerLowest,
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.08),
+                blurRadius: 24,
+                offset: const Offset(0, 10),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 60,
+                height: 60,
+                decoration: BoxDecoration(
+                  color: AppColors.error.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.delete_outline_rounded,
+                  color: AppColors.error,
+                  size: 32,
+                ),
+              ),
+              const SizedBox(height: 20),
+              Text(
+                l.t('titre_annuler') ?? 'Annuler le signalement',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.manrope(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.onSurface,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                l.t('contenu_annuler') ??
+                    'Êtes-vous sûr de vouloir annuler ce signalement ?',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 14,
+                  height: 1.5,
+                  color: AppColors.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        side: BorderSide(color: AppColors.outlineVariant),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      onPressed: () => Navigator.pop(ctx, false),
+                      child: Text(
+                        l.t('btn_annuler_non') ?? 'Non',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.onSurface,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        backgroundColor: AppColors.error,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      onPressed: () => Navigator.pop(ctx, true),
+                      child: Text(
+                        l.t('btn_annuler_oui') ?? 'Oui, annuler',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (confirmed == true) {
+      await FirebaseFirestore.instance
+          .collection('signalements')
+          .doc(signalement.id)
+          .update({'statut': 'annulé'});
+    }
+  }
+
+  // ── Formatted absolute timestamp ─────────────────────────────────────────
+  String _formatTimestamp() {
+    if (signalement.timestamp == null) return '';
+    return DateFormat('dd/MM/yyyy – HH:mm').format(signalement.timestamp!);
+  }
 
   @override
   Widget build(BuildContext context) {
+    final canCancel = signalement.statut == 'en attente';
+
     return Container(
       decoration: BoxDecoration(
         color: AppColors.surfaceContainerLowest,
@@ -225,11 +365,9 @@ class _SignalementCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ── Coloured top border matching status ──────────────────────────
-          Container(
-            height: 5,
-            color: signalement.borderColor,
-          ),
+          // ── Coloured top border matching status ────────────────────────
+          Container(height: 5, color: signalement.borderColor),
+
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
             child: Column(
@@ -262,7 +400,7 @@ class _SignalementCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Rapport citoyen automatique',
+                  l.t('rapport_citoyen'),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: GoogleFonts.plusJakartaSans(
@@ -270,12 +408,43 @@ class _SignalementCard extends StatelessWidget {
                     color: AppColors.onSurfaceVariant,
                   ),
                 ),
+
+                // Timestamp
+                if (_formatTimestamp().isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  Directionality(
+                    textDirection: TextDirection.ltr,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.access_time_rounded,
+                          size: 11,
+                          color: AppColors.onSurfaceVariant,
+                        ),
+                        const SizedBox(width: 3),
+                        Text(
+                          _formatTimestamp(),
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 11,
+                            color: AppColors.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+
                 const SizedBox(height: 12),
-                // Footer
+
+                // Footer row
                 Row(
                   children: [
-                    const Icon(Icons.location_on_outlined,
-                        size: 14, color: AppColors.onSurfaceVariant),
+                    const Icon(
+                      Icons.location_on_outlined,
+                      size: 14,
+                      color: AppColors.onSurfaceVariant,
+                    ),
                     const SizedBox(width: 4),
                     Expanded(
                       child: Text(
@@ -289,13 +458,36 @@ class _SignalementCard extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: 8),
+
+                    // ── Cancel button (only for 'en attente') ──────────────
+                    if (canCancel)
+                      Padding(
+                        padding: const EdgeInsetsDirectional.only(end: 4),
+                        child: InkWell(
+                          onTap: () => _confirmCancel(context),
+                          borderRadius: BorderRadius.circular(8),
+                          child: Container(
+                            padding: const EdgeInsets.all(5),
+                            decoration: BoxDecoration(
+                              color: AppColors.error.withOpacity(0.10),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Icon(
+                              Icons.delete_outline_rounded,
+                              color: AppColors.error,
+                              size: 16,
+                            ),
+                          ),
+                        ),
+                      ),
+
                     GestureDetector(
                       onTap: onTap,
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(
-                            'Voir détails',
+                            l.t('voir_details'),
                             style: GoogleFonts.plusJakartaSans(
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
@@ -303,8 +495,11 @@ class _SignalementCard extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(width: 4),
-                          const Icon(Icons.arrow_forward_rounded,
-                              size: 14, color: AppColors.primary),
+                          const Icon(
+                            Icons.arrow_forward_rounded,
+                            size: 14,
+                            color: AppColors.primary,
+                          ),
                         ],
                       ),
                     ),
@@ -319,10 +514,7 @@ class _SignalementCard extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-
-/// Debug error card — shows the raw Firestore error string as SelectableText
-/// so the Firebase Console index URL can be long-pressed and copied directly.
+// ─── Debug error card ─────────────────────────────────────────────────────────
 class _FirestoreErrorCard extends StatelessWidget {
   const _FirestoreErrorCard({required this.error});
   final Object? error;
@@ -342,8 +534,11 @@ class _FirestoreErrorCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(Icons.warning_amber_rounded,
-                  color: Color(0xFFE65100), size: 20),
+              const Icon(
+                Icons.warning_amber_rounded,
+                color: Color(0xFFE65100),
+                size: 20,
+              ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(

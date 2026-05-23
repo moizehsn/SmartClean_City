@@ -1,16 +1,17 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/l10n/app_localizations.dart';
 
 // ─── Signalement Model ────────────────────────────────────────────────────────
 /// Typed representation of a document in the `signalements` Firestore collection.
 /// Used by all Citizen screens (AccueilScreen, MesSignalementsScreen,
 /// SignalementDetailScreen).
 class Signalement {
-  final String id;           // Firestore doc ID (auto-generated)
-  final String idCourt;      // e.g. "#4829"
-  final String citoyenId;    // "user_mock"
-  final String statut;       // "en attente" | "en cours" | "terminé" | "rejeté"
+  final String id; // Firestore doc ID (auto-generated)
+  final String idCourt; // e.g. "#4829"
+  final String citoyenId; // "user_mock"
+  final String statut; // "en attente" | "en cours" | "terminé" | "rejeté"
   final String adresseLisible;
   final double latitude;
   final double longitude;
@@ -37,7 +38,8 @@ class Signalement {
       idCourt: (data['id_court'] as String?) ?? '#????',
       citoyenId: (data['citoyen_id'] as String?) ?? '',
       statut: (data['statut'] as String?) ?? 'en attente',
-      adresseLisible: (data['adresse_lisible'] as String?) ?? 'Adresse inconnue',
+      adresseLisible:
+          (data['adresse_lisible'] as String?) ?? 'Adresse inconnue',
       latitude: (data['latitude'] as num?)?.toDouble() ?? 0.0,
       longitude: (data['longitude'] as num?)?.toDouble() ?? 0.0,
       photoBase64: (data['photo_base64'] as String?) ?? '',
@@ -51,13 +53,13 @@ class Signalement {
   Color get statusColor {
     switch (statut) {
       case 'en attente':
-        return AppColors.statusPendingAdmin;   // Orange #E65100
+        return AppColors.statusPendingAdmin; // Orange #E65100
       case 'en cours':
-        return AppColors.statusInProgress;     // Purple #6A1B9A
+        return AppColors.statusInProgress; // Purple #6A1B9A
       case 'terminé':
-        return AppColors.statusCompleted;      // Green  #00450D
+        return AppColors.statusCompleted; // Green  #00450D
       case 'rejeté':
-        return AppColors.statusRejected;       // Red    #BA1A1A
+        return AppColors.statusRejected; // Red    #BA1A1A
       default:
         return AppColors.onSurfaceVariant;
     }
@@ -70,13 +72,13 @@ class Signalement {
   String get statusLabel {
     switch (statut) {
       case 'en attente':
-        return 'En attente';
+        return 'statut_en_attente';
       case 'en cours':
-        return 'En cours';
+        return 'statut_en_cours';
       case 'terminé':
-        return 'Terminé';
+        return 'statut_termine';
       case 'rejeté':
-        return 'Rejeté';
+        return 'statut_rejete';
       default:
         return statut;
     }
@@ -134,10 +136,14 @@ class Signalement {
   /// Step indices: 0=reçu, 1=vérif IA, 2=assigné, 3=nettoyage
   int get doneSteps {
     switch (statut) {
-      case 'en attente': return 2;  // steps 0 & 1 done
-      case 'en cours':  return 3;  // steps 0, 1, 2 done
-      case 'terminé':   return 4;  // all done
-      default:          return 1;  // rejeté / unknown → only received
+      case 'en attente':
+        return 2; // steps 0 & 1 done
+      case 'en cours':
+        return 3; // steps 0, 1, 2 done
+      case 'terminé':
+        return 4; // all done
+      default:
+        return 1; // rejeté / unknown → only received
     }
   }
 }
@@ -160,10 +166,14 @@ class FirestoreStatusBadge extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(signalement.statusIcon, size: 12, color: signalement.statusColor),
+          Icon(
+            signalement.statusIcon,
+            size: 12,
+            color: signalement.statusColor,
+          ),
           const SizedBox(width: 5),
           Text(
-            signalement.statusLabel,
+            AppLocalizations.of(context).t(signalement.statusLabel),
             style: const TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w600,

@@ -1,0 +1,51 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Helper: auth checks ──────────────────────────────────────
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    function isAdmin() {
+      return isAuthenticated()
+        && exists(/databases/$(database)/documents/citoyens/$(request.auth.uid))
+        && get(/databases/$(database)/documents/citoyens/$(request.auth.uid)).data.role == 'admin';
+    }
+    function isChauffeur() {
+      return isAuthenticated()
+        && exists(/databases/$(database)/documents/citoyens/$(request.auth.uid))
+        && get(/databases/$(database)/documents/citoyens/$(request.auth.uid)).data.role == 'chauffeur';
+    }
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+
+    // ── Signalements ─────────────────────────────────────────────
+    match /signalements/{docId} {
+      allow create: if isAuthenticated()
+        && request.resource.data.citoyen_id == request.auth.uid;
+      allow read: if isAuthenticated()
+        && (resource.data.citoyen_id == request.auth.uid
+            || isAdmin()
+            || isChauffeur());
+      allow update: if isAuthenticated()
+        && (isAdmin()
+            || (isOwner(resource.data.citoyen_id)
+                && resource.data.statut == 'en attente')
+            || (isChauffeur()
+                && resource.data.statut == 'en cours'));
+      allow delete: if isAuthenticated()
+        && (isOwner(resource.data.citoyen_id) || isAdmin());
+    }
+
+    // ── Citoyens (profile) ───────────────────────────────────────
+    match /citoyens/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isOwner(userId)
+        && request.resource.data.role == 'citoyen';
+      allow update: if isOwner(userId)
+        || isAdmin();
+      allow delete: if isAdmin();
+    }
+  }
+}

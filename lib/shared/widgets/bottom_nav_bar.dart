@@ -92,8 +92,9 @@ class AppBottomNavBar extends StatelessWidget {
                           duration: const Duration(milliseconds: 200),
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 11,
-                            fontWeight:
-                                isActive ? FontWeight.w600 : FontWeight.w400,
+                            fontWeight: isActive
+                                ? FontWeight.w600
+                                : FontWeight.w400,
                             color: isActive
                                 ? AppColors.primary
                                 : AppColors.onSurfaceVariant,

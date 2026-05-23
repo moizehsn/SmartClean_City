@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/l10n/app_localizations.dart';
 import '../../shared/firestore/signalement_model.dart';
 import '../../shared/widgets/glass_container.dart';
 
@@ -9,17 +10,18 @@ class SignalementDetailScreen extends StatelessWidget {
   const SignalementDetailScreen({super.key, required this.signalement});
   final Signalement signalement;
 
-  // ── Timeline steps ────────────────────────────────────────────────────────
+  // ── Timeline steps keys ────────────────────────────────────────────────────────
   static const _timelineSteps = [
-    ('Signalement reçu', 'Votre rapport a été enregistré'),
-    ('Vérification IA', 'Analyse de la photo terminée'),
-    ("Assigné à l'équipe", 'Équipe de nettoyage en route'),
-    ('Nettoyage effectué', 'Confirmation visuelle en attente'),
+    ('signalement_recu', 'signalement_enregistre'),
+    ('verification_ia', 'analyse_photo_terminee'),
+    ('assigne_equipe', 'equipe_en_route'),
+    ('nettoyage_effectue', 'confirmation_attente'),
   ];
 
   @override
   Widget build(BuildContext context) {
     final doneCount = signalement.doneSteps;
+    final l = AppLocalizations.of(context);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -50,8 +52,11 @@ class SignalementDetailScreen extends StatelessWidget {
             // ── Address subtitle ──────────────────────────────────────────
             Row(
               children: [
-                const Icon(Icons.location_on_outlined,
-                    size: 14, color: AppColors.onSurfaceVariant),
+                const Icon(
+                  Icons.location_on_outlined,
+                  size: 14,
+                  color: AppColors.onSurfaceVariant,
+                ),
                 const SizedBox(width: 4),
                 Expanded(
                   child: Text(
@@ -82,13 +87,13 @@ class SignalementDetailScreen extends StatelessWidget {
             const SizedBox(height: 24),
 
             // ── Timeline ──────────────────────────────────────────────────
-            _SectionLabel(label: "Suivi de l'intervention"),
+            _SectionLabel(label: l.t('suivi_intervention')),
             const SizedBox(height: 12),
             GlassContainer(
               padding: const EdgeInsets.all(20),
               child: Column(
                 children: List.generate(_timelineSteps.length, (i) {
-                  final (title, sub) = _timelineSteps[i];
+                  final (titleKey, subKey) = _timelineSteps[i];
                   final done = i < doneCount;
                   final isActive = i == doneCount - 1; // last "done" step
                   final isLast = i == _timelineSteps.length - 1;
@@ -107,12 +112,14 @@ class SignalementDetailScreen extends StatelessWidget {
                               shape: BoxShape.circle,
                               color: done
                                   ? (isActive
-                                      ? AppColors.primary
-                                      : AppColors.primaryFixed)
+                                        ? AppColors.primary
+                                        : AppColors.primaryFixed)
                                   : AppColors.surfaceContainerHigh,
                               border: isActive
                                   ? Border.all(
-                                      color: AppColors.primary, width: 2.5)
+                                      color: AppColors.primary,
+                                      width: 2.5,
+                                    )
                                   : null,
                             ),
                             child: Center(
@@ -123,8 +130,8 @@ class SignalementDetailScreen extends StatelessWidget {
                                 size: 16,
                                 color: done
                                     ? (isActive
-                                        ? Colors.white
-                                        : AppColors.primaryContainer)
+                                          ? Colors.white
+                                          : AppColors.primaryContainer)
                                     : AppColors.onSurfaceVariant,
                               ),
                             ),
@@ -144,14 +151,13 @@ class SignalementDetailScreen extends StatelessWidget {
                       // ── Step text ────────────────────────────────────────
                       Expanded(
                         child: Padding(
-                          padding:
-                              EdgeInsets.only(bottom: isLast ? 0 : 24),
+                          padding: EdgeInsets.only(bottom: isLast ? 0 : 24),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               const SizedBox(height: 5),
                               Text(
-                                title,
+                                l.t(titleKey),
                                 style: GoogleFonts.plusJakartaSans(
                                   fontSize: 14,
                                   fontWeight: FontWeight.w600,
@@ -162,7 +168,7 @@ class SignalementDetailScreen extends StatelessWidget {
                               ),
                               const SizedBox(height: 2),
                               Text(
-                                sub,
+                                l.t(subKey),
                                 style: GoogleFonts.plusJakartaSans(
                                   fontSize: 12,
                                   color: AppColors.onSurfaceVariant,
@@ -180,31 +186,38 @@ class SignalementDetailScreen extends StatelessWidget {
             const SizedBox(height: 20),
 
             // ── Location ─────────────────────────────────────────────────
-            _SectionLabel(label: 'Localisation'),
+            _SectionLabel(label: l.t('localisation')),
             const SizedBox(height: 12),
-            _InfoCard(children: [
-              _InfoRow(
+            _InfoCard(
+              children: [
+                _InfoRow(
                   icon: Icons.location_city_rounded,
-                  text: signalement.adresseLisible),
-              _InfoRow(
+                  text: signalement.adresseLisible,
+                ),
+                _InfoRow(
                   icon: Icons.map_outlined,
                   text:
-                      '${signalement.latitude.toStringAsFixed(5)}, ${signalement.longitude.toStringAsFixed(5)}'),
-            ]),
+                      '${signalement.latitude.toStringAsFixed(5)}, ${signalement.longitude.toStringAsFixed(5)}',
+                ),
+              ],
+            ),
             const SizedBox(height: 20),
 
             // ── Type de déchet ────────────────────────────────────────────
-            _SectionLabel(label: 'Type de déchet'),
+            _SectionLabel(label: l.t('type_dechet') ?? 'Type de déchet'),
             const SizedBox(height: 12),
-            _InfoCard(children: [
-              _InfoRow(
+            _InfoCard(
+              children: [
+                _InfoRow(
                   icon: Icons.delete_outline_rounded,
-                  text: 'Ordures ménagères'),
-            ]),
+                  text: l.t('ordures_menageres') ?? 'Ordures ménagères',
+                ),
+              ],
+            ),
             const SizedBox(height: 20),
 
             // ── AI analysis ───────────────────────────────────────────────
-            _SectionLabel(label: 'Analyse IA'),
+            _SectionLabel(label: l.t('analyse_ia') ?? 'Analyse IA'),
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.all(16),
@@ -215,12 +228,16 @@ class SignalementDetailScreen extends StatelessWidget {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(Icons.psychology_outlined,
-                      color: AppColors.primary, size: 20),
+                  const Icon(
+                    Icons.psychology_outlined,
+                    color: AppColors.primary,
+                    size: 20,
+                  ),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      'Dépassement de capacité confirmé. Intervention prioritaire recommandée dans les 24h.',
+                      l.t('analyse_ia_desc') ??
+                          'Dépassement de capacité confirmé. Intervention prioritaire recommandée dans les 24h.',
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 13,
                         color: AppColors.onSurface,
@@ -267,30 +284,32 @@ class _PhotoSection extends StatelessWidget {
   }
 
   Widget _placeholder() => Container(
-        height: 220,
-        decoration: BoxDecoration(
-          color: AppColors.surfaceContainerLow,
-          borderRadius: BorderRadius.circular(25),
-        ),
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.image_outlined,
-                  size: 48,
-                  color: AppColors.onSurfaceVariant.withOpacity(0.5)),
-              const SizedBox(height: 8),
-              Text(
-                'Photo du signalement',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 13,
-                  color: AppColors.onSurfaceVariant,
-                ),
-              ),
-            ],
+    height: 220,
+    decoration: BoxDecoration(
+      color: AppColors.surfaceContainerLow,
+      borderRadius: BorderRadius.circular(25),
+    ),
+    child: Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.image_outlined,
+            size: 48,
+            color: AppColors.onSurfaceVariant.withOpacity(0.5),
           ),
-        ),
-      );
+          const SizedBox(height: 8),
+          Text(
+            'Photo du signalement',
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 13,
+              color: AppColors.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

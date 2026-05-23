@@ -68,10 +68,10 @@ class _MissionValidationScreenState extends State<MissionValidationScreen> {
           .collection('signalements')
           .doc(widget.docId)
           .update({
-        'statut': 'terminé',
-        'photo_apres_base64': afterBase64,
-        'timestamp_fin': FieldValue.serverTimestamp(),
-      });
+            'statut': 'terminé',
+            'photo_apres_base64': afterBase64,
+            'timestamp_fin': FieldValue.serverTimestamp(),
+          });
 
       if (mounted) {
         _showSnackBar('Mission terminée avec succès !', isError: false);
@@ -167,7 +167,8 @@ class _MissionValidationScreenState extends State<MissionValidationScreen> {
                     children: [
                       ClipRRect(
                         borderRadius: const BorderRadius.vertical(
-                            top: Radius.circular(20)),
+                          top: Radius.circular(20),
+                        ),
                         child: Image.file(
                           File(_afterImage!.path),
                           width: double.infinity,
@@ -182,7 +183,9 @@ class _MissionValidationScreenState extends State<MissionValidationScreen> {
                           onTap: _isSubmitting ? null : _prendrePhotoApres,
                           child: Container(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 14, vertical: 8),
+                              horizontal: 14,
+                              vertical: 8,
+                            ),
                             decoration: BoxDecoration(
                               color: Colors.black.withOpacity(0.45),
                               borderRadius: BorderRadius.circular(20),
@@ -190,8 +193,11 @@ class _MissionValidationScreenState extends State<MissionValidationScreen> {
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                const Icon(Icons.camera_alt_outlined,
-                                    color: Colors.white, size: 14),
+                                const Icon(
+                                  Icons.camera_alt_outlined,
+                                  color: Colors.white,
+                                  size: 14,
+                                ),
                                 const SizedBox(width: 5),
                                 Text(
                                   'Reprendre',
@@ -211,16 +217,22 @@ class _MissionValidationScreenState extends State<MissionValidationScreen> {
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.symmetric(
-                        vertical: 12, horizontal: 16),
+                      vertical: 12,
+                      horizontal: 16,
+                    ),
                     decoration: const BoxDecoration(
                       color: AppColors.primary,
-                      borderRadius:
-                          BorderRadius.vertical(bottom: Radius.circular(20)),
+                      borderRadius: BorderRadius.vertical(
+                        bottom: Radius.circular(20),
+                      ),
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.check_circle_rounded,
-                            color: Colors.white, size: 18),
+                        const Icon(
+                          Icons.check_circle_rounded,
+                          color: Colors.white,
+                          size: 18,
+                        ),
                         const SizedBox(width: 8),
                         Text(
                           '✓ Photo « Après » capturée',
@@ -245,8 +257,9 @@ class _MissionValidationScreenState extends State<MissionValidationScreen> {
                     color: AppColors.surfaceContainerLow,
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(
-                        color: AppColors.outlineVariant.withOpacity(0.4),
-                        width: 2),
+                      color: AppColors.outlineVariant.withOpacity(0.4),
+                      width: 2,
+                    ),
                   ),
                   child: _isCapturing
                       ? const Center(
@@ -265,8 +278,11 @@ class _MissionValidationScreenState extends State<MissionValidationScreen> {
                                 color: AppColors.primaryFixed.withOpacity(0.3),
                                 shape: BoxShape.circle,
                               ),
-                              child: const Icon(Icons.camera_alt_outlined,
-                                  color: AppColors.primary, size: 28),
+                              child: const Icon(
+                                Icons.camera_alt_outlined,
+                                color: AppColors.primary,
+                                size: 28,
+                              ),
                             ),
                             const SizedBox(height: 12),
                             Text(
@@ -301,8 +317,11 @@ class _MissionValidationScreenState extends State<MissionValidationScreen> {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(Icons.info_outline_rounded,
-                      color: AppColors.primary, size: 17),
+                  const Icon(
+                    Icons.info_outline_rounded,
+                    color: AppColors.primary,
+                    size: 17,
+                  ),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
@@ -339,18 +358,22 @@ class _MissionValidationScreenState extends State<MissionValidationScreen> {
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(Icons.verified_rounded,
-                                color:
-                                    AppColors.onSurfaceVariant.withOpacity(0.4),
-                                size: 20),
+                            Icon(
+                              Icons.verified_rounded,
+                              color: AppColors.onSurfaceVariant.withOpacity(
+                                0.4,
+                              ),
+                              size: 20,
+                            ),
                             const SizedBox(width: 8),
                             Text(
                               'Valider la mission',
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w600,
-                                color:
-                                    AppColors.onSurfaceVariant.withOpacity(0.4),
+                                color: AppColors.onSurfaceVariant.withOpacity(
+                                  0.4,
+                                ),
                                 letterSpacing: 0.1,
                               ),
                             ),

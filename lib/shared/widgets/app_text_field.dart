@@ -122,8 +122,10 @@ class _AppTextFieldState extends State<AppTextField> {
               borderRadius: BorderRadius.circular(16),
               borderSide: const BorderSide(color: AppColors.error, width: 1),
             ),
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 20,
+              vertical: 18,
+            ),
           ),
         ),
       ),

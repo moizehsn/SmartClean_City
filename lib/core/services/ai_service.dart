@@ -6,7 +6,8 @@ class AiService {
   static final List<Map<String, String>> _messages = [
     {
       "role": "system",
-      "content": '''Tu es Eco-Bot, l'assistant officiel de l'application SmartClean City à Laghouat.
+      "content":
+          '''Tu es Eco-Bot, l'assistant officiel de l'application SmartClean City à Laghouat.
 
 RÈGLE ABSOLUE DE LANGUE :
 Tu DOIS répondre EXACTEMENT dans la langue utilisée par l'utilisateur.
@@ -23,8 +24,8 @@ CONTRAINTES STRICTES :
 - N'invente AUCUNE fonctionnalité (pas de boutique en ligne, pas de paiement, pas de livraison).
 - Refuse poliment toute question sur la programmation (Flutter, Firebase, Code) en disant que c'est confidentiel.
 - Refuse de parler de sport, politique ou religion. Reste concentré sur l'environnement et l'application.
-- Sois bref, utile et très poli.'''
-    }
+- Sois bref, utile et très poli.''',
+    },
   ];
 
   /// Sends a message and returns the response text.
@@ -35,7 +36,7 @@ CONTRAINTES STRICTES :
       final response = await http.post(
         Uri.parse('https://api.groq.com/openai/v1/chat/completions'),
         headers: {
-          'Authorization': 'Bearer ${ApiKeys.groqKey}',
+          'Authorization': 'Bearer ${ApiKeys.groqApiKey}',
           'Content-Type': 'application/json',
         },
         body: jsonEncode({

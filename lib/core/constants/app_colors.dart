@@ -75,10 +75,10 @@ class AppColors {
   // ─── Botanical Shadow helper ──────────────────────────────────────────────
   /// Use this as the single elevation shadow across the app
   static List<BoxShadow> get botanicalShadow => [
-        BoxShadow(
-          color: const Color(0xFF002204).withOpacity(0.08),
-          blurRadius: 40,
-          offset: const Offset(0, 12),
-        ),
-      ];
+    BoxShadow(
+      color: const Color(0xFF002204).withOpacity(0.08),
+      blurRadius: 40,
+      offset: const Offset(0, 12),
+    ),
+  ];
 }
