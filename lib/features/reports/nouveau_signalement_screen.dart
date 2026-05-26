@@ -10,7 +10,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/l10n/app_localizations.dart';
-import '../../core/services/ai_vision_service.dart';
+import '../../core/services/ai_vision_service.dart' show AiVisionService, AiValidationResult;
 import '../../core/services/geo_utils.dart';
 import '../../shared/widgets/primary_button.dart';
 
@@ -228,18 +228,30 @@ class _NouveauSignalementScreenState extends State<NouveauSignalementScreen> {
       // ── Phase 2: AI Image Validation ───────────────────────────────────
       setState(() => _validationPhase = 'ai');
       final imageBytes = await File(_image!.path).readAsBytes();
-      final isGarbage = await AiVisionService.validateGarbageImage(imageBytes);
+      final aiResult = await AiVisionService.validateGarbageImage(imageBytes);
       if (!mounted) return;
-      if (!isGarbage) {
-        setState(() { _isSubmitting = false; _validationPhase = null; });
-        _showRejectionDialog(
-          icon: Icons.camera_alt_rounded,
-          color: AppColors.error,
-          title: l.t('ia_rejet_citoyen_titre'),
-          message: l.t('ia_rejet_citoyen_message'),
-          buttonLabel: l.t('reessayer'),
-        );
-        return;
+
+      switch (aiResult) {
+        case AiValidationResult.valid:
+          // Proceed to upload
+          break;
+        case AiValidationResult.rejected:
+          setState(() { _isSubmitting = false; _validationPhase = null; });
+          _showRejectionDialog(
+            icon: Icons.camera_alt_rounded,
+            color: AppColors.error,
+            title: l.t('ia_rejet_citoyen_titre'),
+            message: l.t('ia_rejet_citoyen_message'),
+            buttonLabel: l.t('reessayer'),
+          );
+          return;
+        case AiValidationResult.apiError:
+          setState(() { _isSubmitting = false; _validationPhase = null; });
+          _showSnackBar(
+            'Erreur de connexion au service IA. Vérifiez votre réseau et réessayez.',
+            isError: true,
+          );
+          return;
       }
 
       // ── Phase 3: Upload to Firestore ───────────────────────────────────

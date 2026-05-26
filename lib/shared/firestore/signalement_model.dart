@@ -56,6 +56,8 @@ class Signalement {
         return AppColors.statusPendingAdmin; // Orange #E65100
       case 'en cours':
         return AppColors.statusInProgress; // Purple #6A1B9A
+      case 'en vérification':
+        return AppColors.statusVerification; // Teal #00838F
       case 'terminé':
         return AppColors.statusCompleted; // Green  #00450D
       case 'rejeté':
@@ -75,6 +77,8 @@ class Signalement {
         return 'statut_en_attente';
       case 'en cours':
         return 'statut_en_cours';
+      case 'en vérification':
+        return 'statut_en_verification';
       case 'terminé':
         return 'statut_termine';
       case 'rejeté':
@@ -91,6 +95,8 @@ class Signalement {
         return Icons.hourglass_empty_rounded;
       case 'en cours':
         return Icons.loop_rounded;
+      case 'en vérification':
+        return Icons.pending_outlined;
       case 'terminé':
         return Icons.check_circle_outline_rounded;
       case 'rejeté':
@@ -140,6 +146,8 @@ class Signalement {
         return 2; // steps 0 & 1 done
       case 'en cours':
         return 3; // steps 0, 1, 2 done
+      case 'en vérification':
+        return 3; // same as en cours — waiting for admin
       case 'terminé':
         return 4; // all done
       default:

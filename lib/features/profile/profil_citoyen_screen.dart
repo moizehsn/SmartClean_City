@@ -10,8 +10,8 @@ import '../../main.dart' show toggleLocale, localeNotifier;
 import '../auth/inscription_screen.dart';
 
 import 'modifier_profil_screen.dart';
-import 'notifications_screen.dart';
 import 'confidentialite_screen.dart';
+import 'about_app_screen.dart';
 
 class ProfilCitoyenScreen extends StatelessWidget {
   const ProfilCitoyenScreen({super.key});
@@ -275,14 +275,7 @@ class ProfilCitoyenScreen extends StatelessWidget {
                             },
                             l: l,
                           ),
-                          _ActionTile(
-                            icon: Icons.notifications_outlined,
-                            label: l.t('notifications'),
-                            onTap: () {
-                              Navigator.push(context, MaterialPageRoute(builder: (_) => const NotificationsScreen()));
-                            },
-                            l: l,
-                          ),
+
 
                           // ── Language toggle tile ─────────────────────────────────
                           ValueListenableBuilder<Locale>(
@@ -303,7 +296,15 @@ class ProfilCitoyenScreen extends StatelessWidget {
                             icon: Icons.security_outlined,
                             label: l.t('confidentialite'),
                             onTap: () {
-                              Navigator.push(context, MaterialPageRoute(builder: (_) => const ConfidentialiteScreen()));
+                              Navigator.push(context, MaterialPageRoute(builder: (_) => const ConfidentialiteScreen(isDriver: false)));
+                            },
+                            l: l,
+                          ),
+                          _ActionTile(
+                            icon: Icons.info_outline_rounded,
+                            label: l.isArabic ? 'حول التطبيق' : 'À propos',
+                            onTap: () {
+                              Navigator.push(context, MaterialPageRoute(builder: (_) => const AboutAppScreen()));
                             },
                             l: l,
                           ),

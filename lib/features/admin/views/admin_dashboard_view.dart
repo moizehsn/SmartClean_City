@@ -24,6 +24,8 @@ class AdminDashboardView extends StatelessWidget {
             allDocs.where((d) => (d.data() as Map)['statut'] == 'en attente').length;
         final enCours =
             allDocs.where((d) => (d.data() as Map)['statut'] == 'en cours').length;
+        final enVerification =
+            allDocs.where((d) => (d.data() as Map)['statut'] == 'en vérification').length;
         final termines =
             allDocs.where((d) => (d.data() as Map)['statut'] == 'terminé').length;
         final recent = allDocs.take(8).toList();
@@ -84,6 +86,12 @@ class AdminDashboardView extends StatelessWidget {
                         value: '$enCours',
                         icon: Icons.loop_rounded,
                         color: AppColors.statusInProgress,
+                      ),
+                      _KpiCard(
+                        label: isAr ? 'قيد المراجعة' : 'En Vérification',
+                        value: '$enVerification',
+                        icon: Icons.pending_outlined,
+                        color: AppColors.statusVerification,
                       ),
                       _KpiCard(
                         label: isAr ? 'منتهية' : 'Terminés',
@@ -150,17 +158,20 @@ class AdminDashboardView extends StatelessWidget {
                                 final style = GoogleFonts.plusJakartaSans(
                                   color: AppColors.onSurfaceVariant,
                                   fontWeight: FontWeight.w700,
-                                  fontSize: 12,
+                                  fontSize: 10,
                                 );
                                 String text;
                                 switch (value.toInt()) {
                                   case 0:
-                                    text = isAr ? 'انتظار' : 'En Attente';
+                                    text = isAr ? 'انتظار' : 'Attente';
                                     break;
                                   case 1:
-                                    text = isAr ? 'جاري' : 'En Cours';
+                                    text = isAr ? 'جاري' : 'En cours';
                                     break;
                                   case 2:
+                                    text = isAr ? 'مراجعة' : 'Vérif.';
+                                    break;
+                                  case 3:
                                     text = isAr ? 'منتهي' : 'Terminés';
                                     break;
                                   default:
@@ -212,6 +223,17 @@ class AdminDashboardView extends StatelessWidget {
                           ),
                           BarChartGroupData(
                             x: 2,
+                            barRods: [
+                              BarChartRodData(
+                                toY: enVerification.toDouble(),
+                                color: AppColors.statusVerification,
+                                width: 28,
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                            ],
+                          ),
+                          BarChartGroupData(
+                            x: 3,
                             barRods: [
                               BarChartRodData(
                                 toY: termines.toDouble(),
@@ -428,6 +450,8 @@ class _StatusBadge extends StatelessWidget {
         return AppColors.statusPendingAdmin;
       case 'en cours':
         return AppColors.statusInProgress;
+      case 'en vérification':
+        return AppColors.statusVerification;
       case 'terminé':
         return AppColors.statusCompleted;
       case 'rejeté':
@@ -443,6 +467,8 @@ class _StatusBadge extends StatelessWidget {
         return isAr ? 'انتظار' : 'En attente';
       case 'en cours':
         return isAr ? 'جاري' : 'En cours';
+      case 'en vérification':
+        return isAr ? 'مراجعة' : 'Vérification';
       case 'terminé':
         return isAr ? 'منتهي' : 'Terminé';
       case 'rejeté':

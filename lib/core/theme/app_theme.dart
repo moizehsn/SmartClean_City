@@ -230,3 +230,194 @@ class AppTheme {
     );
   }
 }
+
+/// ─── Driver Theme ────────────────────────────────────────────────────────────
+/// Deep Orange + Navy dark theme exclusively for the Driver shell.
+/// Shares the same typography strategy as [AppTheme] for consistency.
+class DriverTheme {
+  DriverTheme._();
+
+  static bool get _isArabic => localeNotifier.value.languageCode == 'ar';
+
+  static TextStyle _display(
+    double size,
+    FontWeight weight, {
+    double spacing = 0,
+    Color? color,
+  }) {
+    return _isArabic
+        ? GoogleFonts.tajawal(
+            fontSize: size + 2,
+            fontWeight: weight,
+            letterSpacing: spacing,
+            color: color ?? AppColors.driverOnSurface,
+          )
+        : GoogleFonts.manrope(
+            fontSize: size,
+            fontWeight: weight,
+            letterSpacing: spacing,
+            color: color ?? AppColors.driverOnSurface,
+          );
+  }
+
+  static TextStyle _body(
+    double size,
+    FontWeight weight, {
+    double spacing = 0,
+    Color? color,
+    double height = 1.0,
+  }) {
+    return _isArabic
+        ? GoogleFonts.cairo(
+            fontSize: size + 1.5,
+            fontWeight: weight,
+            letterSpacing: spacing,
+            color: color ?? AppColors.driverOnSurface,
+            height: height,
+          )
+        : GoogleFonts.plusJakartaSans(
+            fontSize: size,
+            fontWeight: weight,
+            letterSpacing: spacing,
+            color: color ?? AppColors.driverOnSurface,
+            height: height,
+          );
+  }
+
+  static ThemeData get light {
+    final colorScheme = ColorScheme(
+      brightness: Brightness.dark,
+      primary: AppColors.driverPrimary,
+      onPrimary: Colors.white,
+      primaryContainer: const Color(0xFFBF360C),
+      onPrimaryContainer: Colors.white,
+      secondary: AppColors.driverAccent,
+      onSecondary: AppColors.driverBackground,
+      secondaryContainer: const Color(0xFF3E2800),
+      onSecondaryContainer: AppColors.driverAccent,
+      tertiary: const Color(0xFF80CBC4),
+      onTertiary: AppColors.driverBackground,
+      tertiaryContainer: const Color(0xFF00695C),
+      onTertiaryContainer: Colors.white,
+      error: AppColors.error,
+      onError: Colors.white,
+      errorContainer: const Color(0xFF93000A),
+      onErrorContainer: const Color(0xFFFFDAD6),
+      surface: AppColors.driverSurface,
+      onSurface: AppColors.driverOnSurface,
+      onSurfaceVariant: AppColors.driverOnSurfaceVariant,
+      outline: const Color(0xFF5A6580),
+      outlineVariant: const Color(0xFF2E3D55),
+      inverseSurface: AppColors.driverOnSurface,
+      onInverseSurface: AppColors.driverBackground,
+      inversePrimary: AppColors.driverPrimary,
+      surfaceTint: AppColors.driverPrimary,
+    );
+
+    return ThemeData(
+      useMaterial3: true,
+      colorScheme: colorScheme,
+      scaffoldBackgroundColor: AppColors.driverBackground,
+
+      // ─── Typography (same font strategy, driver colours) ──────────────────
+      textTheme: TextTheme(
+        displayLarge: _display(57, FontWeight.w700, spacing: -1.14),
+        displayMedium: _display(45, FontWeight.w700, spacing: -0.9),
+        displaySmall: _display(36, FontWeight.w700, spacing: -0.72),
+        headlineLarge: _display(32, FontWeight.w600, spacing: -0.5),
+        headlineMedium: _display(28, FontWeight.w600, spacing: -0.3),
+        headlineSmall: _display(24, FontWeight.w600),
+        titleLarge: _body(22, FontWeight.w600),
+        titleMedium: _body(16, FontWeight.w600, spacing: 0.15),
+        titleSmall: _body(14, FontWeight.w500, spacing: 0.1),
+        bodyLarge: _body(16, FontWeight.w400, spacing: 0.15),
+        bodyMedium: _body(14, FontWeight.w400, spacing: 0.25),
+        bodySmall: _body(
+          12,
+          FontWeight.w400,
+          spacing: 0.4,
+          color: AppColors.driverOnSurfaceVariant,
+        ),
+        labelLarge: _body(14, FontWeight.w600, spacing: 0.1),
+        labelMedium: _body(
+          12,
+          FontWeight.w500,
+          spacing: 0.5,
+          color: AppColors.driverOnSurfaceVariant,
+        ),
+        labelSmall: _body(
+          11,
+          FontWeight.w500,
+          spacing: 0.5,
+          color: AppColors.driverOnSurfaceVariant,
+        ),
+      ),
+
+      // ─── Input Fields ──────────────────────────────────────────────────────
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: AppColors.driverSurfaceHigh,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide.none,
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide.none,
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: const BorderSide(color: AppColors.driverPrimary, width: 2),
+        ),
+        hintStyle: _body(14, FontWeight.w400, color: AppColors.driverOnSurfaceVariant),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+      ),
+
+      // ─── Elevated Button ───────────────────────────────────────────────────
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppColors.driverPrimary,
+          foregroundColor: Colors.white,
+          minimumSize: const Size(double.infinity, 56),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(100)),
+          textStyle: _body(16, FontWeight.w600, spacing: 0.1),
+          elevation: 0,
+        ),
+      ),
+
+      // ─── AppBar ───────────────────────────────────────────────────────────
+      appBarTheme: AppBarTheme(
+        backgroundColor: AppColors.driverBackground,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        titleTextStyle: _display(20, FontWeight.w600),
+        iconTheme: const IconThemeData(color: AppColors.driverOnSurface),
+      ),
+
+      // ─── Card ─────────────────────────────────────────────────────────────
+      cardTheme: CardThemeData(
+        color: AppColors.driverSurface,
+        elevation: 0,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        margin: EdgeInsets.zero,
+      ),
+
+      // ─── Chip ─────────────────────────────────────────────────────────────
+      chipTheme: ChipThemeData(
+        backgroundColor: AppColors.driverSurfaceHigh,
+        selectedColor: AppColors.driverPrimary.withOpacity(0.3),
+        labelStyle: _body(13, FontWeight.w500),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(100)),
+        side: BorderSide.none,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      ),
+
+      // ─── Dividers ─────────────────────────────────────────────────────────
+      dividerTheme: const DividerThemeData(
+        color: Colors.transparent,
+        thickness: 0,
+      ),
+    );
+  }
+}

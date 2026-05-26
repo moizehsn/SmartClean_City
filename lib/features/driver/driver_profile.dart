@@ -6,6 +6,8 @@ import '../../core/constants/app_colors.dart';
 import '../../core/l10n/app_localizations.dart';
 import '../../main.dart' show toggleLocale, localeNotifier;
 import '../auth/connexion_screen.dart';
+import '../profile/confidentialite_screen.dart';
+import '../profile/about_app_screen.dart';
 
 /// Driver profile — mirrors ProfilCitoyenScreen layout with
 /// mission count instead of score/points.
@@ -118,7 +120,7 @@ class _DriverProfileState extends State<DriverProfile> {
                 32,
               ),
               decoration: const BoxDecoration(
-                gradient: AppColors.heroGradient,
+                gradient: AppColors.driverHeroGradient,
                 borderRadius: BorderRadius.vertical(
                   bottom: Radius.circular(32),
                 ),
@@ -242,22 +244,22 @@ class _DriverProfileState extends State<DriverProfile> {
                         width: double.infinity,
                         padding: const EdgeInsets.all(24),
                         decoration: BoxDecoration(
-                          color: AppColors.surfaceContainerLowest,
+                          color: AppColors.driverSurface,
                           borderRadius: BorderRadius.circular(24),
-                          boxShadow: AppColors.botanicalShadow,
+                          boxShadow: AppColors.driverShadow,
                         ),
                         child: Column(
                           children: [
                             Container(
                               padding: const EdgeInsets.all(16),
                               decoration: BoxDecoration(
-                                color: AppColors.primary.withValues(alpha: 0.1),
+                                color: AppColors.driverPrimary.withValues(alpha: 0.1),
                                 shape: BoxShape.circle,
                               ),
                               child: const Icon(
                                 Icons.check_circle_outline_rounded,
                                 size: 32,
-                                color: AppColors.primary,
+                                color: AppColors.driverPrimary,
                               ),
                             ),
                             const SizedBox(height: 16),
@@ -349,20 +351,30 @@ class _DriverProfileState extends State<DriverProfile> {
                     ),
                   ),
                   _ActionTile(
-                    icon: Icons.notifications_outlined,
-                    label: l.t('notifications'),
+                    icon: Icons.security_outlined,
+                    label: l.t('confidentialite'),
                     l: l,
-                    onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Bientôt disponible',
-                          style: GoogleFonts.plusJakartaSans(color: Colors.white),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const ConfidentialiteScreen(isDriver: true),
                         ),
-                        behavior: SnackBarBehavior.floating,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        margin: const EdgeInsets.all(16),
-                        backgroundColor: AppColors.primary,
-                      ),
-                    ),
+                      );
+                    },
+                  ),
+                  _ActionTile(
+                    icon: Icons.info_outline_rounded,
+                    label: l.isArabic ? 'حول التطبيق' : 'À propos',
+                    l: l,
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const AboutAppScreen(),
+                        ),
+                      );
+                    },
                   ),
 
                   // ── Language toggle tile ─────────────────────────────

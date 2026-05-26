@@ -7,7 +7,6 @@ import 'package:image_picker/image_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/l10n/app_localizations.dart';
-import '../../core/services/ai_vision_service.dart';
 import '../../shared/widgets/primary_button.dart';
 
 class MissionActiveScreen extends StatefulWidget {
@@ -26,7 +25,7 @@ class _MissionActiveScreenState extends State<MissionActiveScreen> {
   XFile? _afterImage;
   bool _isCapturing = false;
   bool _isSubmitting = false;
-  /// null = idle, 'ai' = AI analysis, 'uploading' = Firestore write
+  /// null = idle, 'uploading' = Firestore write
   String? _validationPhase;
   bool get _canClose => _afterImage != null && !_isSubmitting && !_isCapturing;
 
@@ -78,40 +77,25 @@ class _MissionActiveScreenState extends State<MissionActiveScreen> {
 
     setState(() {
       _isSubmitting = true;
-      _validationPhase = 'ai';
+      _validationPhase = 'uploading';
     });
 
     try {
-      // ── Phase 1: AI Clean Verification ─────────────────────────────────
+      // ── Encode after photo ──────────────────────────────────────────────────
       final bytes = await File(_afterImage!.path).readAsBytes();
-      final isClean = await AiVisionService.validateCleanImage(bytes);
-      if (!mounted) return;
-      if (!isClean) {
-        setState(() { _isSubmitting = false; _validationPhase = null; });
-        _showRejectionDialog(l);
-        return;
-      }
+      final afterBase64 = base64Encode(bytes);
 
-      // ── Phase 2: Upload to Firestore ───────────────────────────────────
-      setState(() => _validationPhase = 'uploading');
+      // ── Upload to Firestore — status becomes 'en vérification' (Admin QA) ──
       await FirebaseFirestore.instance
           .collection('signalements')
           .doc(widget.docId)
           .update({
-            'statut': 'terminé',
-            'photo_apres_base64': base64Encode(bytes),
+            'statut': 'en vérification',
+            'photo_apres_base64': afterBase64,
             'timestamp_fin': FieldValue.serverTimestamp(),
           });
 
-      // Gamification: Reward citizen
-      final citoyenId = widget.data['citoyen_id'];
-      if (citoyenId != null && citoyenId != 'user_mock' && citoyenId != 'unknown') {
-        await FirebaseFirestore.instance.collection('citoyens').doc(citoyenId).update({
-          'points': FieldValue.increment(10),
-        }).catchError((_) {
-          // Ignore error if profile doesn't exist or permissions fail silently
-        });
-      }
+      // NOTE: Citizen points are now awarded by the Admin upon approval.
       if (mounted) {
         _snack(l.t('mission_cloturee_succes'), isError: false);
         Navigator.of(context).popUntil((route) => route.isFirst);
@@ -167,65 +151,6 @@ class _MissionActiveScreenState extends State<MissionActiveScreen> {
           height: h,
         );
 
-  void _showRejectionDialog(AppLocalizations l) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        backgroundColor: AppColors.surfaceContainerLowest,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 28, 24, 20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 64,
-                height: 64,
-                decoration: BoxDecoration(
-                  color: AppColors.error.withOpacity(0.12),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.cancel_rounded, color: AppColors.error, size: 32),
-              ),
-              const SizedBox(height: 18),
-              Text(
-                l.t('ia_rejet_chauffeur_titre'),
-                style: _dFont(18, FontWeight.w700),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 10),
-              Text(
-                l.t('ia_rejet_chauffeur_message'),
-                style: _bFont(14, FontWeight.w400, c: AppColors.onSurfaceVariant, h: 1.6),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 22),
-              SizedBox(
-                width: double.infinity,
-                height: 48,
-                child: ElevatedButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.error,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(100),
-                    ),
-                    elevation: 0,
-                  ),
-                  child: Text(
-                    l.t('reessayer'),
-                    style: _bFont(15, FontWeight.w600, c: Colors.white),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -237,14 +162,12 @@ class _MissionActiveScreenState extends State<MissionActiveScreen> {
     // ── Phase label helpers ──────────────────────────────────────────────
     String phaseLabel() {
       switch (_validationPhase) {
-        case 'ai':        return l.t('verification_nettoyage');
         case 'uploading': return l.t('envoi_validation');
         default:          return '';
       }
     }
     IconData phaseIcon() {
       switch (_validationPhase) {
-        case 'ai':        return Icons.psychology_rounded;
         case 'uploading': return Icons.cloud_upload_rounded;
         default:          return Icons.hourglass_empty;
       }

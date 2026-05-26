@@ -5,7 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart' hide TextDirection;
 import '../../../core/constants/app_colors.dart';
 
-/// Admin — Gestion des Signalements with filter pills + data table + actions
+/// Admin — Gestion des Signalements with filter pills + data table + QA actions
 class AdminSignalementsView extends StatefulWidget {
   final String searchQuery;
   const AdminSignalementsView({super.key, this.searchQuery = ''});
@@ -21,6 +21,7 @@ class _AdminSignalementsViewState extends State<AdminSignalementsView> {
     null,
     'en attente',
     'en cours',
+    'en vérification',
     'terminé',
     'rejeté',
   ];
@@ -29,6 +30,7 @@ class _AdminSignalementsViewState extends State<AdminSignalementsView> {
     isAr ? 'الكل' : 'Tous',
     isAr ? 'انتظار' : 'En attente',
     isAr ? 'جاري' : 'En cours',
+    isAr ? 'مراجعة' : 'Vérification',
     isAr ? 'منتهي' : 'Terminé',
     isAr ? 'مرفوض' : 'Rejeté',
   ];
@@ -51,6 +53,312 @@ class _AdminSignalementsViewState extends State<AdminSignalementsView> {
         .doc(docId)
         .update({'statut': newStatut});
   }
+
+  // ── Admin QA: Approve after photo ─────────────────────────────────────────
+  Future<void> _approveReport(String docId, String? citoyenId) async {
+    final batch = FirebaseFirestore.instance.batch();
+    final ref = FirebaseFirestore.instance.collection('signalements').doc(docId);
+
+    batch.update(ref, {
+      'statut': 'terminé',
+      'timestamp_qa': FieldValue.serverTimestamp(),
+    });
+
+    // Gamification: award citizen 10 points on Admin approval
+    if (citoyenId != null && citoyenId != 'user_mock' && citoyenId != 'unknown') {
+      final citoyenRef = FirebaseFirestore.instance.collection('citoyens').doc(citoyenId);
+      batch.update(citoyenRef, {'points': FieldValue.increment(10)});
+    }
+
+    await batch.commit();
+  }
+
+  // ── Admin QA: Reject after photo — revert to en cours ──────────────────────
+  Future<void> _rejectReport(String docId) async {
+    await FirebaseFirestore.instance
+        .collection('signalements')
+        .doc(docId)
+        .update({
+          'statut': 'en cours',
+          'photo_apres_base64': FieldValue.delete(),
+          'timestamp_fin': FieldValue.delete(),
+        });
+  }
+
+  // ── QA Review bottom sheet ─────────────────────────────────────────────────
+  void _showQAReview(String docId, Map<String, dynamic> data, bool isAr) {
+    final photoAvant = data['photo_base64'] as String?;
+    final photoApres = data['photo_apres_base64'] as String?;
+    final idCourt = data['id_court'] as String? ?? '#????';
+    final addr = data['adresse_lisible'] as String? ?? 'Adresse inconnue';
+    final citoyenId = data['citoyen_id'] as String?;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+        backgroundColor: AppColors.surfaceContainerLowest,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 560),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(28),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // ── Header ──────────────────────────────────────────
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: AppColors.statusVerification.withOpacity(0.12),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(
+                                  Icons.pending_outlined,
+                                  size: 13,
+                                  color: AppColors.statusVerification,
+                                ),
+                                const SizedBox(width: 5),
+                                Text(
+                                  isAr ? 'قيد المراجعة' : 'En vérification',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppColors.statusVerification,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            isAr ? 'مراجعة الجودة — $idCourt' : 'Contrôle Qualité — $idCourt',
+                            style: GoogleFonts.manrope(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.onSurface,
+                              letterSpacing: -0.3,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            addr,
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 13,
+                              color: AppColors.onSurfaceVariant,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.of(ctx).pop(),
+                      icon: const Icon(Icons.close_rounded),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+
+                // ── Before / After photo comparison ────────────────
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Before
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            isAr ? 'قبل التنظيف' : 'Avant nettoyage',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.statusPendingAdmin,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: photoAvant != null && photoAvant.isNotEmpty
+                                ? Image.memory(
+                                    base64Decode(photoAvant),
+                                    height: 180,
+                                    width: double.infinity,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, __, ___) => _photoError(),
+                                  )
+                                : _photoError(),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    // After
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            isAr ? 'بعد التنظيف' : 'Après nettoyage',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.statusCompleted,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: photoApres != null && photoApres.isNotEmpty
+                                ? Image.memory(
+                                    base64Decode(photoApres),
+                                    height: 180,
+                                    width: double.infinity,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, __, ___) => _photoError(),
+                                  )
+                                : _photoError(),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+
+                // ── Info note ────────────────────────────────────────
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: AppColors.statusVerification.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.info_outline_rounded,
+                        color: AppColors.statusVerification,
+                        size: 16,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          isAr
+                              ? 'الموافقة ستمنح المواطن 10 نقاط. الرفض سيعيد المهمة للسائق.'
+                              : 'Approuver accordera 10 points au citoyen. Rejeter renverra la mission au chauffeur.',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 12,
+                            color: AppColors.onSurfaceVariant,
+                            height: 1.5,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+
+                // ── Action buttons ──────────────────────────────────
+                Row(
+                  children: [
+                    // Reject button
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () async {
+                          Navigator.of(ctx).pop();
+                          await _rejectReport(docId);
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  isAr ? 'تم رفض الصورة — المهمة عادت للسائق' : 'Photo rejetée — mission renvoyée au chauffeur',
+                                  style: GoogleFonts.plusJakartaSans(color: Colors.white),
+                                ),
+                                backgroundColor: AppColors.error,
+                                behavior: SnackBarBehavior.floating,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                margin: const EdgeInsets.all(16),
+                              ),
+                            );
+                          }
+                        },
+                        icon: const Icon(Icons.close_rounded, size: 18),
+                        label: Text(isAr ? 'رفض' : 'Rejeter'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.error,
+                          side: const BorderSide(color: AppColors.error),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          textStyle: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700, fontSize: 14),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    // Approve button
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () async {
+                          Navigator.of(ctx).pop();
+                          await _approveReport(docId, citoyenId);
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  isAr ? 'تمت الموافقة — المهمة مكتملة ✓' : 'Approuvé — Mission terminée ✓',
+                                  style: GoogleFonts.plusJakartaSans(color: Colors.white),
+                                ),
+                                backgroundColor: AppColors.statusCompleted,
+                                behavior: SnackBarBehavior.floating,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                margin: const EdgeInsets.all(16),
+                              ),
+                            );
+                          }
+                        },
+                        icon: const Icon(Icons.check_circle_rounded, size: 18),
+                        label: Text(isAr ? 'موافقة' : 'Approuver'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.statusCompleted,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          textStyle: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700, fontSize: 14),
+                          elevation: 0,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _photoError() => Container(
+    height: 180,
+    decoration: BoxDecoration(
+      color: AppColors.surfaceContainerLow,
+      borderRadius: BorderRadius.circular(12),
+    ),
+    child: const Center(
+      child: Icon(Icons.broken_image_outlined, color: AppColors.onSurfaceVariant, size: 36),
+    ),
+  );
 
   void _showReportDetails(Map<String, dynamic> data, String docId, bool isAr) {
     final addr = data['adresse_lisible'] as String? ?? 'Adresse inconnue';
@@ -236,6 +544,10 @@ class _AdminSignalementsViewState extends State<AdminSignalementsView> {
               itemCount: labels.length,
               itemBuilder: (_, i) {
                 final active = i == _filterIndex;
+                // 'En vérification' pill gets the teal QA color
+                final pillColor = _filters[i] == 'en vérification'
+                    ? AppColors.statusVerification
+                    : AppColors.primary;
                 return Padding(
                   padding: const EdgeInsets.only(right: 8),
                   child: GestureDetector(
@@ -248,7 +560,7 @@ class _AdminSignalementsViewState extends State<AdminSignalementsView> {
                       ),
                       decoration: BoxDecoration(
                         color: active
-                            ? AppColors.primary
+                            ? pillColor
                             : AppColors.surfaceContainerLow,
                         borderRadius: BorderRadius.circular(100),
                         border: active
@@ -257,13 +569,27 @@ class _AdminSignalementsViewState extends State<AdminSignalementsView> {
                                 color: AppColors.outlineVariant.withOpacity(0.4),
                               ),
                       ),
-                      child: Text(
-                        labels[i],
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: active ? Colors.white : AppColors.onSurfaceVariant,
-                        ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (_filters[i] == 'en vérification' && active)
+                            Padding(
+                              padding: const EdgeInsets.only(right: 5),
+                              child: Icon(
+                                Icons.pending_outlined,
+                                size: 13,
+                                color: active ? Colors.white : AppColors.statusVerification,
+                              ),
+                            ),
+                          Text(
+                            labels[i],
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: active ? Colors.white : AppColors.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
@@ -365,71 +691,103 @@ class _AdminSignalementsViewState extends State<AdminSignalementsView> {
                         final statut = d['statut'] as String? ?? 'en attente';
                         final addr = d['adresse_lisible'] as String? ?? '';
                         final ts = (d['timestamp'] as Timestamp?)?.toDate();
+                        final citoyenId = d['citoyen_id'] as String?;
+                        final isQA = statut == 'en vérification';
 
-                        return DataRow(cells: [
-                          DataCell(Text(
-                            d['id_court'] ?? '#????',
-                            style: GoogleFonts.manrope(
-                              fontWeight: FontWeight.w700,
-                              fontSize: 13,
-                              color: AppColors.primary,
-                            ),
-                          )),
-                          DataCell(
-                            SizedBox(
-                              width: 260,
-                              child: Text(
-                                addr,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 13,
-                                  color: AppColors.onSurface,
+                        return DataRow(
+                          color: isQA
+                              ? WidgetStateProperty.all(
+                                  AppColors.statusVerification.withOpacity(0.05))
+                              : null,
+                          cells: [
+                            DataCell(Text(
+                              d['id_court'] ?? '#????',
+                              style: GoogleFonts.manrope(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 13,
+                                color: AppColors.primary,
+                              ),
+                            )),
+                            DataCell(
+                              SizedBox(
+                                width: 260,
+                                child: Text(
+                                  addr,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 13,
+                                    color: AppColors.onSurface,
+                                  ),
                                 ),
                               ),
                             ),
-                          ),
-                          DataCell(_StatusBadge(statut: statut, isAr: isAr)),
-                          DataCell(Text(
-                            ts != null
-                                ? DateFormat('dd/MM/yyyy – HH:mm').format(ts)
-                                : '—',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 12,
-                              color: AppColors.onSurfaceVariant,
-                            ),
-                          )),
-                          DataCell(Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              _ActionBtn(
-                                icon: Icons.visibility_rounded,
+                            DataCell(_StatusBadge(statut: statut, isAr: isAr)),
+                            DataCell(Text(
+                              ts != null
+                                  ? DateFormat('dd/MM/yyyy – HH:mm').format(ts)
+                                  : '—',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 12,
                                 color: AppColors.onSurfaceVariant,
-                                tooltip: isAr ? 'عرض التفاصيل' : 'Voir les détails',
-                                onTap: () => _showReportDetails(d, doc.id, isAr),
                               ),
-                              const SizedBox(width: 4),
-                              if (statut == 'en attente') ...[
+                            )),
+                            DataCell(Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
                                 _ActionBtn(
-                                  icon: Icons.check_rounded,
-                                  color: AppColors.primary,
-                                  tooltip: isAr ? 'قبول ← قيد المعالجة' : 'Accepter → En cours',
-                                  onTap: () =>
-                                      _updateStatut(doc.id, 'en cours'),
+                                  icon: Icons.visibility_rounded,
+                                  color: AppColors.onSurfaceVariant,
+                                  tooltip: isAr ? 'عرض التفاصيل' : 'Voir les détails',
+                                  onTap: () => _showReportDetails(d, doc.id, isAr),
                                 ),
                                 const SizedBox(width: 4),
+                                // QA actions for 'en vérification' reports
+                                if (isQA) ...[
+                                  _ActionBtn(
+                                    icon: Icons.rate_review_rounded,
+                                    color: AppColors.statusVerification,
+                                    tooltip: isAr ? 'مراجعة الصور' : 'Réviser les photos',
+                                    onTap: () => _showQAReview(doc.id, d, isAr),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  _ActionBtn(
+                                    icon: Icons.check_circle_rounded,
+                                    color: AppColors.statusCompleted,
+                                    tooltip: isAr ? 'موافقة → منتهي' : 'Approuver → Terminé',
+                                    onTap: () => _approveReport(doc.id, citoyenId),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  _ActionBtn(
+                                    icon: Icons.replay_rounded,
+                                    color: AppColors.error,
+                                    tooltip: isAr ? 'رفض → إعادة للسائق' : 'Rejeter → Renvoyer au chauffeur',
+                                    onTap: () => _rejectReport(doc.id),
+                                  ),
+                                ] else ...[
+                                  if (statut == 'en attente') ...[
+                                    _ActionBtn(
+                                      icon: Icons.check_rounded,
+                                      color: AppColors.primary,
+                                      tooltip: isAr ? 'قبول ← قيد المعالجة' : 'Accepter → En cours',
+                                      onTap: () =>
+                                          _updateStatut(doc.id, 'en cours'),
+                                    ),
+                                    const SizedBox(width: 4),
+                                  ],
+                                  if (statut != 'rejeté' && statut != 'terminé')
+                                    _ActionBtn(
+                                      icon: Icons.close_rounded,
+                                      color: AppColors.error,
+                                      tooltip: isAr ? 'رفض' : 'Rejeter',
+                                      onTap: () =>
+                                          _updateStatut(doc.id, 'rejeté'),
+                                    ),
+                                ],
                               ],
-                              if (statut != 'rejeté' && statut != 'terminé')
-                                _ActionBtn(
-                                  icon: Icons.close_rounded,
-                                  color: AppColors.error,
-                                  tooltip: isAr ? 'رفض' : 'Rejeter',
-                                  onTap: () =>
-                                      _updateStatut(doc.id, 'rejeté'),
-                                ),
-                            ],
-                          )),
-                        ]);
+                            )),
+                          ],
+                        );
                       }).toList(),
                     ),
                   ),
@@ -515,6 +873,8 @@ class _StatusBadge extends StatelessWidget {
         return AppColors.statusPendingAdmin;
       case 'en cours':
         return AppColors.statusInProgress;
+      case 'en vérification':
+        return AppColors.statusVerification;
       case 'terminé':
         return AppColors.statusCompleted;
       case 'rejeté':
@@ -530,6 +890,8 @@ class _StatusBadge extends StatelessWidget {
         return isAr ? 'انتظار' : 'En attente';
       case 'en cours':
         return isAr ? 'جاري' : 'En cours';
+      case 'en vérification':
+        return isAr ? 'مراجعة' : 'Vérification';
       case 'terminé':
         return isAr ? 'منتهي' : 'Terminé';
       case 'rejeté':
@@ -539,21 +901,40 @@ class _StatusBadge extends StatelessWidget {
     }
   }
 
+  IconData get _icon {
+    switch (statut) {
+      case 'en vérification':
+        return Icons.pending_outlined;
+      default:
+        return Icons.circle;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final showIcon = statut == 'en vérification';
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
         color: _color.withOpacity(0.10),
         borderRadius: BorderRadius.circular(100),
       ),
-      child: Text(
-        _label,
-        style: GoogleFonts.plusJakartaSans(
-          fontSize: 11,
-          fontWeight: FontWeight.w600,
-          color: _color,
-        ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (showIcon) ...[
+            Icon(_icon, size: 11, color: _color),
+            const SizedBox(width: 4),
+          ],
+          Text(
+            _label,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: _color,
+            ),
+          ),
+        ],
       ),
     );
   }

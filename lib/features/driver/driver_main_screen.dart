@@ -4,9 +4,9 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/l10n/app_localizations.dart';
+import '../../core/theme/app_theme.dart';
 import 'driver_dashboard.dart';
 import 'driver_map.dart';
-import 'driver_history.dart';
 import 'driver_profile.dart';
 
 /// Main navigation shell for the Driver (Chauffeur) role.
@@ -32,11 +32,10 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
   static const _navIcons = [
     (Icons.dashboard_outlined, Icons.dashboard_rounded),
     (Icons.map_outlined, Icons.map_rounded),
-    (Icons.history_outlined, Icons.history_rounded),
     (Icons.person_outline_rounded, Icons.person_rounded),
   ];
 
-  static const _navKeys = ['accueil', 'carte', 'historique', 'profil'];
+  static const _navKeys = ['accueil', 'carte', 'profil'];
 
   @override
   void initState() {
@@ -48,7 +47,6 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
         focusTarget: _focusTarget,
       ),
       DriverMap(focusTarget: _focusTarget),
-      const DriverHistory(),
       const DriverProfile(),
     ];
   }
@@ -69,15 +67,19 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
       return (icon, activeIcon, l.t(_navKeys[i]));
     });
 
-    return Scaffold(
-      extendBody: true,
-      backgroundColor: AppColors.background,
-      body: IndexedStack(index: _currentIndex, children: _screens),
-      bottomNavigationBar: _DriverBottomNav(
-        currentIndex: _currentIndex,
-        items: navItems,
-        onTap: (i) => setState(() => _currentIndex = i),
-        isArabic: l.isArabic,
+    // Wrap the entire driver shell in the Driver theme for visual distinction.
+    return Theme(
+      data: DriverTheme.light,
+      child: Scaffold(
+        extendBody: true,
+        backgroundColor: AppColors.driverBackground,
+        body: IndexedStack(index: _currentIndex, children: _screens),
+        bottomNavigationBar: _DriverBottomNav(
+          currentIndex: _currentIndex,
+          items: navItems,
+          onTap: (i) => setState(() => _currentIndex = i),
+          isArabic: l.isArabic,
+        ),
       ),
     );
   }
@@ -99,6 +101,7 @@ class _DriverBottomNav extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final primary = Theme.of(context).colorScheme.primary;
     return Padding(
       padding: EdgeInsets.fromLTRB(
         16,
@@ -113,13 +116,13 @@ class _DriverBottomNav extends StatelessWidget {
           child: Container(
             height: 68,
             decoration: BoxDecoration(
-              color: AppColors.surfaceContainerLowest.withValues(alpha: 0.90),
+              color: AppColors.driverSurface.withValues(alpha: 0.92),
               borderRadius: BorderRadius.circular(28),
               border: Border.all(
-                color: AppColors.outlineVariant.withValues(alpha: 0.20),
+                color: AppColors.driverOnSurfaceVariant.withValues(alpha: 0.15),
                 width: 1,
               ),
-              boxShadow: AppColors.botanicalShadow,
+              boxShadow: AppColors.driverShadow,
             ),
             child: Row(
               children: List.generate(items.length, (i) {
@@ -141,8 +144,8 @@ class _DriverBottomNav extends StatelessWidget {
                             key: ValueKey(isActive),
                             size: 24,
                             color: isActive
-                                ? AppColors.primary
-                                : AppColors.onSurfaceVariant,
+                                ? primary
+                                : AppColors.driverOnSurfaceVariant,
                           ),
                         ),
                         const SizedBox(height: 4),
@@ -159,8 +162,8 @@ class _DriverBottomNav extends StatelessWidget {
                                         ? FontWeight.w600
                                         : FontWeight.w400,
                                     color: isActive
-                                        ? AppColors.primary
-                                        : AppColors.onSurfaceVariant,
+                                        ? primary
+                                        : AppColors.driverOnSurfaceVariant,
                                   ),
                         ),
                       ],

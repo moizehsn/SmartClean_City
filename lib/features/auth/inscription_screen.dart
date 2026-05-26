@@ -4,6 +4,7 @@ import '../../core/constants/app_colors.dart';
 import '../../shared/widgets/app_text_field.dart';
 import '../../shared/widgets/primary_button.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../../core/l10n/app_localizations.dart';
 import 'connexion_screen.dart';
 import '../../core/services/auth_service.dart';
 import 'auth_wrapper.dart';
@@ -34,17 +35,18 @@ class _InscriptionScreenState extends State<InscriptionScreen> {
   }
 
   Future<void> _creerCompte() async {
+    final l = AppLocalizations.of(context);
     final nom = _nomCtrl.text.trim();
     final email = _emailCtrl.text.trim();
     final mdp = _mdpCtrl.text.trim();
     final confirm = _confirmCtrl.text.trim();
 
     if (nom.isEmpty || email.isEmpty || mdp.isEmpty) {
-      _showError('Veuillez remplir tous les champs.');
+      _showError(l.t('remplir_tous_champs'));
       return;
     }
     if (mdp != confirm) {
-      _showError('Les mots de passe ne correspondent pas.');
+      _showError(l.t('mots_de_passe_non_identiques'));
       return;
     }
 
@@ -58,16 +60,16 @@ class _InscriptionScreenState extends State<InscriptionScreen> {
       );
     } on FirebaseAuthException catch (e) {
       if (e.code == 'weak-password') {
-        _showError('Le mot de passe est trop faible.');
+        _showError(l.t('mdp_faible'));
       } else if (e.code == 'email-already-in-use') {
-        _showError('Un compte existe déjà pour cet email.');
+        _showError(l.t('compte_existe_deja'));
       } else if (e.code == 'invalid-email') {
-        _showError('Adresse email invalide.');
+        _showError(l.t('email_invalide'));
       } else {
-        _showError(e.message ?? 'Une erreur est survenue.');
+        _showError(e.message ?? l.t('erreur_survenue'));
       }
     } catch (e) {
-      _showError('Erreur inattendue.');
+      _showError(l.t('erreur_inattendue'));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -95,6 +97,7 @@ class _InscriptionScreenState extends State<InscriptionScreen> {
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
+    final l = AppLocalizations.of(context);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -145,7 +148,7 @@ class _InscriptionScreenState extends State<InscriptionScreen> {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          "Propreté Urbaine par l'IA",
+                          l.t('proprete_ia'),
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 13,
                             color: Colors.white70,
@@ -169,7 +172,7 @@ class _InscriptionScreenState extends State<InscriptionScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Créer un Compte',
+                          l.t('creer_compte_titre'),
                           style: GoogleFonts.manrope(
                             fontSize: 28,
                             fontWeight: FontWeight.w700,
@@ -179,7 +182,7 @@ class _InscriptionScreenState extends State<InscriptionScreen> {
                         ),
                         const SizedBox(height: 6),
                         Text(
-                          'Rejoignez-nous pour une ville plus verte.',
+                          l.t('rejoignez_nous_ville'),
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 14,
                             color: AppColors.onSurfaceVariant,
@@ -188,14 +191,14 @@ class _InscriptionScreenState extends State<InscriptionScreen> {
                         const SizedBox(height: 28),
 
                         AppTextField(
-                          hintText: 'Nom complet',
+                          hintText: l.t('nom_complet'),
                           controller: _nomCtrl,
                           prefixIcon: Icons.person_outline_rounded,
                           textInputAction: TextInputAction.next,
                         ),
                         const SizedBox(height: 14),
                         AppTextField(
-                          hintText: 'Adresse email',
+                          hintText: l.t('adresse_email'),
                           controller: _emailCtrl,
                           prefixIcon: Icons.email_outlined,
                           keyboardType: TextInputType.emailAddress,
@@ -203,7 +206,7 @@ class _InscriptionScreenState extends State<InscriptionScreen> {
                         ),
                         const SizedBox(height: 14),
                         AppTextField(
-                          hintText: 'Mot de passe',
+                          hintText: l.t('mot_de_passe'),
                           controller: _mdpCtrl,
                           prefixIcon: Icons.lock_outline_rounded,
                           obscureText: _obscureMdp,
@@ -222,7 +225,7 @@ class _InscriptionScreenState extends State<InscriptionScreen> {
                         ),
                         const SizedBox(height: 14),
                         AppTextField(
-                          hintText: 'Confirmer le mot de passe',
+                          hintText: l.t('confirmer_mot_de_passe'),
                           controller: _confirmCtrl,
                           prefixIcon: Icons.lock_outline_rounded,
                           obscureText: _obscureConfirm,
@@ -246,7 +249,7 @@ class _InscriptionScreenState extends State<InscriptionScreen> {
                         _isLoading
                             ? const Center(child: CircularProgressIndicator())
                             : PrimaryButton(
-                                label: 'Créer un compte',
+                                label: l.t('creer_compte_titre'),
                                 onPressed: _creerCompte,
                               ),
                         const SizedBox(height: 22),
@@ -255,8 +258,8 @@ class _InscriptionScreenState extends State<InscriptionScreen> {
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Text(
-                              'Vous avez déjà un compte ? ',
-                              style: GoogleFonts.plusJakartaSans(
+                              l.t('deja_un_compte'),
+                              style: (l.isArabic ? GoogleFonts.cairo() : GoogleFonts.plusJakartaSans()).copyWith(
                                 fontSize: 14,
                                 color: AppColors.onSurfaceVariant,
                               ),
@@ -264,8 +267,8 @@ class _InscriptionScreenState extends State<InscriptionScreen> {
                             GestureDetector(
                               onTap: _allerConnexion,
                               child: Text(
-                                'Se connecter',
-                                style: GoogleFonts.plusJakartaSans(
+                                l.t('se_connecter_btn'),
+                                style: (l.isArabic ? GoogleFonts.cairo() : GoogleFonts.plusJakartaSans()).copyWith(
                                   fontSize: 14,
                                   fontWeight: FontWeight.w600,
                                   color: AppColors.primary,

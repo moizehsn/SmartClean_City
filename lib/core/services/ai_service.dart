@@ -1,13 +1,16 @@
-import 'dart:convert';
-import 'package:http/http.dart' as http;
+import 'package:google_generative_ai/google_generative_ai.dart';
 import '../constants/api_keys.dart';
 
+/// Eco-Bot chatbot service — powered by Google Gemini 1.5 Flash.
 class AiService {
-  static final List<Map<String, String>> _messages = [
-    {
-      "role": "system",
-      "content":
-          '''Tu es Eco-Bot, l'assistant officiel de l'application SmartClean City à Laghouat.
+  AiService._();
+
+  // ── Gemini model (singleton, lazily initialised) ───────────────────────────
+  static GenerativeModel? _model;
+  static ChatSession? _chat;
+
+  static const String _systemInstruction = '''
+Tu es Eco-Bot, l'assistant officiel de l'application SmartClean City à Laghouat.
 
 RÈGLE ABSOLUE DE LANGUE :
 Tu DOIS répondre EXACTEMENT dans la langue utilisée par l'utilisateur.
@@ -24,48 +27,43 @@ CONTRAINTES STRICTES :
 - N'invente AUCUNE fonctionnalité (pas de boutique en ligne, pas de paiement, pas de livraison).
 - Refuse poliment toute question sur la programmation (Flutter, Firebase, Code) en disant que c'est confidentiel.
 - Refuse de parler de sport, politique ou religion. Reste concentré sur l'environnement et l'application.
-- Sois bref, utile et très poli.''',
-    },
-  ];
+- Sois bref, utile et très poli.
+''';
 
-  /// Sends a message and returns the response text.
+  static void _ensureInitialised() {
+    if (_model != null) return;
+    _model = GenerativeModel(
+      model: 'gemini-1.5-flash',
+      apiKey: ApiKeys.geminiApiKey,
+      systemInstruction: Content.system(_systemInstruction),
+      generationConfig: GenerationConfig(
+        temperature: 0.7,
+        maxOutputTokens: 512,
+      ),
+    );
+    _chat = _model!.startChat();
+  }
+
+  /// Sends a message and returns the bot's response text.
+  /// Never throws — returns a localised error string on failure.
   static Future<String> sendMessage(String text) async {
-    _messages.add({"role": "user", "content": text});
-
     try {
-      final response = await http.post(
-        Uri.parse('https://api.groq.com/openai/v1/chat/completions'),
-        headers: {
-          'Authorization': 'Bearer ${ApiKeys.groqApiKey}',
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode({
-          'model': 'llama-3.1-8b-instant',
-          'messages': _messages,
-        }),
-      );
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(utf8.decode(response.bodyBytes));
-        final reply = data['choices'][0]['message']['content'] as String;
-        _messages.add({"role": "assistant", "content": reply});
-        return reply;
-      } else {
-        print('Groq API Error: ${response.statusCode} - ${response.body}');
-        return 'Désolé, je n\'ai pas pu générer une réponse. (Erreur serveur)';
-      }
+      _ensureInitialised();
+      final response = await _chat!
+          .sendMessage(Content.text(text))
+          .timeout(const Duration(seconds: 30));
+      return response.text?.trim() ??
+          'Désolé, je rencontre des problèmes de connexion. Veuillez réessayer.';
     } catch (e) {
-      print('Groq Request Error: $e');
-      return 'Désolé, j\'ai rencontré un problème de connexion.';
+      // ignore: avoid_print
+      print('⚠️ GEMINI CHAT ERROR: $e');
+      return 'Désolé, je rencontre des problèmes de connexion. Veuillez réessayer.';
     }
   }
 
-  /// Clears chat history except system prompt
+  /// Resets the conversation to a fresh chat session.
   static void resetChat() {
-    if (_messages.isNotEmpty) {
-      final systemPrompt = _messages.first;
-      _messages.clear();
-      _messages.add(systemPrompt);
-    }
+    _ensureInitialised();
+    _chat = _model!.startChat();
   }
 }

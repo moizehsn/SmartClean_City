@@ -58,6 +58,7 @@ class AppColors {
   static const Color statusInProgress = Color(0xFF6A1B9A);
   static const Color statusCompleted = Color(0xFF00450D);
   static const Color statusRejected = Color(0xFFBA1A1A);
+  static const Color statusVerification = Color(0xFF00838F); // Teal — 'en vérification'
 
   // ─── Gradients ───────────────────────────────────────────────────────────
   static const LinearGradient primaryGradient = LinearGradient(
@@ -79,6 +80,30 @@ class AppColors {
       color: const Color(0xFF002204).withOpacity(0.08),
       blurRadius: 40,
       offset: const Offset(0, 12),
+    ),
+  ];
+
+  // ─── Driver Role Palette ─────────────────────────────────────────────────────
+  /// Deep Orange + Navy — visual distinction for the Driver shell.
+  static const Color driverPrimary = Color(0xFFE64A19);     // Deep Orange 700
+  static const Color driverAccent  = Color(0xFFFFB300);     // Amber 600
+  static const Color driverBackground = Color(0xFF0F1923);  // Deep navy
+  static const Color driverSurface    = Color(0xFF1A2535);  // Card surface
+  static const Color driverSurfaceHigh = Color(0xFF243044); // Elevated card
+  static const Color driverOnSurface  = Color(0xFFF1F4F8);  // Light text on dark
+  static const Color driverOnSurfaceVariant = Color(0xFFADB5C2); // Muted text
+
+  static const LinearGradient driverHeroGradient = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [Color(0xFFE64A19), Color(0xFFBF360C)], // Deep Orange gradient
+  );
+
+  static List<BoxShadow> get driverShadow => [
+    BoxShadow(
+      color: const Color(0xFFE64A19).withOpacity(0.12),
+      blurRadius: 32,
+      offset: const Offset(0, 10),
     ),
   ];
 }

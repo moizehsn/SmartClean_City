@@ -6,6 +6,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:intl/intl.dart' hide TextDirection;
 import '../../core/constants/app_colors.dart';
 import '../../core/l10n/app_localizations.dart';
+import '../../core/services/geocoding_service.dart';
 import '../../shared/widgets/glass_container.dart';
 import 'mission_detail_screen.dart';
 
@@ -28,6 +29,36 @@ class DriverDashboard extends StatefulWidget {
 class _DriverDashboardState extends State<DriverDashboard> {
   String _currentFilter = 'en attente';
 
+  late final Stream<QuerySnapshot> _nouveauxStream;
+  late final Stream<QuerySnapshot> _enCoursStream;
+  late final Stream<QuerySnapshot> _enVerificationStream;
+  late final Stream<QuerySnapshot> _terminesStream;
+
+  @override
+  void initState() {
+    super.initState();
+    final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+    final firestore = FirebaseFirestore.instance.collection('signalements');
+    
+    _nouveauxStream = firestore.where('statut', isEqualTo: 'en attente').snapshots();
+    _enCoursStream = firestore.where('statut', isEqualTo: 'en cours').where('chauffeur_id', isEqualTo: uid).snapshots();
+    _enVerificationStream = firestore.where('statut', isEqualTo: 'en vérification').where('chauffeur_id', isEqualTo: uid).snapshots();
+    _terminesStream = firestore.where('statut', isEqualTo: 'terminé').where('chauffeur_id', isEqualTo: uid).snapshots();
+  }
+
+  Stream<QuerySnapshot> get _activeStream {
+    switch (_currentFilter) {
+      case 'en cours':
+        return _enCoursStream;
+      case 'en vérification':
+        return _enVerificationStream;
+      case 'terminé':
+        return _terminesStream;
+      default:
+        return _nouveauxStream;
+    }
+  }
+
   // ── Filter metadata — labels filled from context in build ─────────────────
   List<({String statut, String label, Color color})> _filters(
     AppLocalizations l,
@@ -43,6 +74,11 @@ class _DriverDashboardState extends State<DriverDashboard> {
       color: AppColors.statusInProgress,
     ),
     (
+      statut: 'en vérification',
+      label: l.t('statut_en_verification'),
+      color: AppColors.statusVerification,
+    ),
+    (
       statut: 'terminé',
       label: l.t('termines'),
       color: AppColors.statusCompleted,
@@ -53,6 +89,8 @@ class _DriverDashboardState extends State<DriverDashboard> {
     switch (_currentFilter) {
       case 'en cours':
         return l.t('missions_en_cours');
+      case 'en vérification':
+        return l.t('statut_en_verification');
       case 'terminé':
         return l.t('missions_terminees');
       default:
@@ -64,6 +102,8 @@ class _DriverDashboardState extends State<DriverDashboard> {
     switch (_currentFilter) {
       case 'en cours':
         return AppColors.statusInProgress;
+      case 'en vérification':
+        return AppColors.statusVerification;
       case 'terminé':
         return AppColors.statusCompleted;
       default:
@@ -81,7 +121,7 @@ class _DriverDashboardState extends State<DriverDashboard> {
       children: [
         Container(
           height: size.height * 0.30,
-          decoration: const BoxDecoration(gradient: AppColors.heroGradient),
+          decoration: const BoxDecoration(gradient: AppColors.driverHeroGradient),
         ),
 
         SafeArea(
@@ -196,6 +236,13 @@ class _DriverDashboardState extends State<DriverDashboard> {
                                   isSelected: isSelected,
                                   onTap: () =>
                                       setState(() => _currentFilter = f.statut),
+                                  stream: f.statut == 'en attente'
+                                      ? _nouveauxStream
+                                      : f.statut == 'en cours'
+                                          ? _enCoursStream
+                                          : f.statut == 'en vérification'
+                                              ? _enVerificationStream
+                                              : _terminesStream,
                                 ),
                               ),
                             );
@@ -275,18 +322,7 @@ class _DriverDashboardState extends State<DriverDashboard> {
               // ── Filtered mission list ────────────────────────────────
               SliverToBoxAdapter(
                 child: StreamBuilder<QuerySnapshot>(
-                  stream: () {
-                    final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
-                    Query<Map<String, dynamic>> q = FirebaseFirestore.instance
-                        .collection('signalements')
-                        .where('statut', isEqualTo: _currentFilter);
-                    // Nouveaux tab: all pending reports city-wide.
-                    // En cours / Terminé: only this driver's missions.
-                    if (_currentFilter != 'en attente') {
-                      q = q.where('chauffeur_id', isEqualTo: uid);
-                    }
-                    return q.snapshots();
-                  }(),
+                  stream: _activeStream,
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {
                       return const Padding(
@@ -359,28 +395,20 @@ class _DriverDashboardState extends State<DriverDashboard> {
                           child: _MissionCard(
                             adresse:
                                 data['adresse_lisible'] ?? 'Adresse inconnue',
-                            timestamp: data['timestamp'] as Timestamp?,
-                            statut: _currentFilter,
                             lat: lat,
                             lng: lng,
+                            timestamp: data['timestamp'] as Timestamp?,
+                            statut: _currentFilter,
                             l: l,
                             onTap: () {
-                              if (_currentFilter == 'en attente') {
-                                // Navigate to detail with accept button.
-                                Navigator.of(context).push(
-                                  MaterialPageRoute(
-                                    builder: (_) => MissionDetailScreen(
-                                      docId: docId,
-                                      data: data,
-                                    ),
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => MissionDetailScreen(
+                                    docId: docId,
+                                    data: data,
                                   ),
-                                );
-                              } else if (_currentFilter == 'en cours' &&
-                                  lat != null && lng != null) {
-                                // Focus map on active mission.
-                                widget.focusTarget.value = LatLng(lat, lng);
-                                widget.onNavigateToMap();
-                              }
+                                ),
+                              );
                             },
                           ),
                         );
@@ -407,6 +435,7 @@ class _FilterStatCard extends StatelessWidget {
     required this.color,
     required this.isSelected,
     required this.onTap,
+    required this.stream,
   });
 
   final String label;
@@ -414,20 +443,12 @@ class _FilterStatCard extends StatelessWidget {
   final Color color;
   final bool isSelected;
   final VoidCallback onTap;
+  final Stream<QuerySnapshot> stream;
 
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<QuerySnapshot>(
-      stream: () {
-        final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
-        Query<Map<String, dynamic>> q = FirebaseFirestore.instance
-            .collection('signalements')
-            .where('statut', isEqualTo: statut);
-        if (statut != 'en attente') {
-          q = q.where('chauffeur_id', isEqualTo: uid);
-        }
-        return q.snapshots();
-      }(),
+      stream: stream,
       builder: (context, snapshot) {
         final count = snapshot.hasData ? snapshot.data!.docs.length : 0;
         final isLoading = snapshot.connectionState == ConnectionState.waiting;
@@ -481,14 +502,21 @@ class _FilterStatCard extends StatelessWidget {
                             ),
                           ),
                     const SizedBox(height: 4),
-                    Text(
-                      label,
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 11,
-                        color: isSelected ? color : AppColors.onSurfaceVariant,
-                        fontWeight: isSelected
-                            ? FontWeight.w700
-                            : FontWeight.w500,
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          label,
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 11,
+                            color: isSelected ? color : AppColors.onSurfaceVariant,
+                            fontWeight: isSelected
+                                ? FontWeight.w700
+                                : FontWeight.w500,
+                          ),
+                        ),
                       ),
                     ),
                     if (isSelected) ...[
@@ -514,27 +542,47 @@ class _FilterStatCard extends StatelessWidget {
 }
 
 // ─── Mission Card ─────────────────────────────────────────────────────────────
-class _MissionCard extends StatelessWidget {
+/// IMPORTANT: This must be a StatefulWidget so that the geocoding [Future]
+/// is created once in [initState] and is NOT recreated on every parent rebuild.
+/// If it were a StatelessWidget, the FutureBuilder would restart on every
+/// rebuild, making it flash "Chargement..." perpetually.
+class _MissionCard extends StatefulWidget {
   const _MissionCard({
     required this.adresse,
-    required this.timestamp,
-    required this.statut,
     required this.lat,
     required this.lng,
+    required this.timestamp,
+    required this.statut,
     required this.l,
     required this.onTap,
   });
 
   final String adresse;
-  final Timestamp? timestamp;
-  final String statut;
   final double? lat;
   final double? lng;
+  final Timestamp? timestamp;
+  final String statut;
   final AppLocalizations l;
   final VoidCallback? onTap;
 
+  @override
+  State<_MissionCard> createState() => _MissionCardState();
+}
+
+class _MissionCardState extends State<_MissionCard> {
+  /// Stored once so FutureBuilder never re-triggers on rebuild.
+  Future<String>? _geocodeFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.lat != null && widget.lng != null) {
+      _geocodeFuture = GeocodingService.getNeighborhood(widget.lat!, widget.lng!);
+    }
+  }
+
   Color get _statusColor {
-    switch (statut) {
+    switch (widget.statut) {
       case 'en cours':
         return AppColors.statusInProgress;
       case 'terminé':
@@ -545,133 +593,214 @@ class _MissionCard extends StatelessWidget {
   }
 
   String get _statusLabel {
-    switch (statut) {
+    switch (widget.statut) {
       case 'en cours':
-        return l.t('statut_en_cours');
+        return widget.l.t('statut_en_cours');
       case 'terminé':
-        return l.t('statut_termine');
+        return widget.l.t('statut_termine');
       default:
-        return l.t('statut_en_attente');
+        return widget.l.t('statut_en_attente');
     }
   }
 
-  /// Absolute formatted timestamp using intl.
   String _formatTime() {
-    if (timestamp == null) return '';
-    final dt = timestamp!.toDate();
+    if (widget.timestamp == null) return '';
+    final dt = widget.timestamp!.toDate();
     return DateFormat('dd/MM/yyyy – HH:mm').format(dt);
   }
 
   @override
   Widget build(BuildContext context) {
-    final bool tappable = onTap != null;
+    final bool tappable = widget.onTap != null;
+    final primary = Theme.of(context).colorScheme.primary;
     return Material(
       color: Colors.transparent,
       borderRadius: BorderRadius.circular(20),
       child: InkWell(
         borderRadius: BorderRadius.circular(20),
-        onTap: onTap,
+        onTap: widget.onTap,
         child: Ink(
           decoration: BoxDecoration(
-            color: AppColors.surfaceContainerLowest,
+            color: AppColors.driverSurface,
             borderRadius: BorderRadius.circular(20),
-            boxShadow: AppColors.botanicalShadow,
+            boxShadow: AppColors.driverShadow,
             border: tappable
-                ? Border.all(color: AppColors.primary.withAlpha(20), width: 1)
+                ? Border.all(color: primary.withAlpha(30), width: 1)
                 : null,
           ),
           child: Padding(
             padding: const EdgeInsets.all(16),
-            child: Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: _statusColor.withAlpha(25),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Icon(
-                    Icons.location_on_outlined,
-                    color: _statusColor,
-                    size: 22,
-                  ),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        adresse,
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.onSurface,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      if (_formatTime().isNotEmpty) ...[
-                        const SizedBox(height: 4),
-                        Directionality(
-                          textDirection: TextDirection.ltr,
+                // ── Neighbourhood via Geocoding ───────────────────────────────────
+                // Shows: spinner while loading, geocoded name on success,
+                // or the raw adresse_lisible as a muted fallback.
+                if (_geocodeFuture != null)
+                  FutureBuilder<String>(
+                    future: _geocodeFuture,
+                    builder: (context, snap) {
+                      // Loading state — show a small inline spinner
+                      if (snap.connectionState == ConnectionState.waiting) {
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
                           child: Row(
-                            mainAxisSize: MainAxisSize.min,
                             children: [
-                              const Icon(
-                                Icons.access_time_rounded,
-                                size: 11,
-                                color: AppColors.onSurfaceVariant,
+                              SizedBox(
+                                width: 12,
+                                height: 12,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 1.5,
+                                  color: primary,
+                                ),
                               ),
-                              const SizedBox(width: 3),
+                              const SizedBox(width: 6),
                               Text(
-                                _formatTime(),
-                                style: GoogleFonts.plusJakartaSans(
+                                'Chargement...',
+                                style: GoogleFonts.manrope(
                                   fontSize: 11,
-                                  color: AppColors.onSurfaceVariant,
+                                  color: AppColors.driverOnSurfaceVariant,
                                 ),
                               ),
                             ],
                           ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                tappable
-                    ? Container(
-                        width: 32,
-                        height: 32,
-                        decoration: BoxDecoration(
-                          color: AppColors.primary.withAlpha(20),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: const Icon(
-                          Icons.my_location_rounded,
-                          color: AppColors.primary,
-                          size: 16,
-                        ),
-                      )
-                    : Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 5,
-                        ),
-                        decoration: BoxDecoration(
-                          color: _statusColor.withAlpha(25),
-                          borderRadius: BorderRadius.circular(100),
-                        ),
-                        child: Text(
-                          _statusLabel,
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            color: _statusColor,
+                        );
+                      }
+
+                      // Error / no data — show raw address as grey italic
+                      if (snap.hasError || !snap.hasData) {
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 6),
+                          child: Text(
+                            widget.adresse,
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 12,
+                              fontStyle: FontStyle.italic,
+                              color: AppColors.driverOnSurfaceVariant,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
+                        );
+                      }
+
+                      // Success — show ONLY the geocoded name, bold + accented
+                      final name = snap.data!;
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 6),
+                        child: Row(
+                          children: [
+                            Icon(Icons.place_rounded, size: 13, color: primary),
+                            const SizedBox(width: 4),
+                            Flexible(
+                              child: Text(
+                                name,
+                                style: GoogleFonts.manrope(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700,
+                                  color: primary,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
                         ),
+                      );
+                    },
+                  ),
+                Row(
+                  children: [
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: _statusColor.withAlpha(30),
+                        borderRadius: BorderRadius.circular(14),
                       ),
+                      child: Icon(
+                        Icons.location_on_outlined,
+                        color: _statusColor,
+                        size: 22,
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            widget.adresse,
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                              color: AppColors.driverOnSurfaceVariant,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          if (_formatTime().isNotEmpty) ...[
+                            const SizedBox(height: 4),
+                            Directionality(
+                              textDirection: TextDirection.ltr,
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(
+                                    Icons.access_time_rounded,
+                                    size: 11,
+                                    color: AppColors.driverOnSurfaceVariant,
+                                  ),
+                                  const SizedBox(width: 3),
+                                  Text(
+                                    _formatTime(),
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 11,
+                                      color: AppColors.driverOnSurfaceVariant,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    tappable
+                        ? Container(
+                            width: 32,
+                            height: 32,
+                            decoration: BoxDecoration(
+                              color: primary.withAlpha(25),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Icon(
+                              Icons.my_location_rounded,
+                              color: primary,
+                              size: 16,
+                            ),
+                          )
+                        : Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 5,
+                            ),
+                            decoration: BoxDecoration(
+                              color: _statusColor.withAlpha(25),
+                              borderRadius: BorderRadius.circular(100),
+                            ),
+                            child: Text(
+                              _statusLabel,
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: _statusColor,
+                              ),
+                            ),
+                          ),
+                  ],
+                ),
               ],
             ),
           ),
@@ -680,6 +809,9 @@ class _MissionCard extends StatelessWidget {
     );
   }
 }
+
+
+
 
 // ─── Debug error card ─────────────────────────────────────────────────────────
 class _FirestoreErrorCard extends StatelessWidget {

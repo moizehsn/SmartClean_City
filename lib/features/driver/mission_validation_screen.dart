@@ -68,7 +68,7 @@ class _MissionValidationScreenState extends State<MissionValidationScreen> {
           .collection('signalements')
           .doc(widget.docId)
           .update({
-            'statut': 'terminé',
+            'statut': 'en vérification',
             'photo_apres_base64': afterBase64,
             'timestamp_fin': FieldValue.serverTimestamp(),
           });

@@ -22,7 +22,6 @@ class MissionDetailScreen extends StatelessWidget {
   final Map<String, dynamic> data;
 
   String get _statut => data['statut'] as String? ?? 'en attente';
-  bool get _isPickable => _statut == 'en attente';
 
   Future<void> _launchNavigation(BuildContext context) async {
     final lat = data['latitude'] as double?;
@@ -236,57 +235,81 @@ class MissionDetailScreen extends StatelessWidget {
             const SizedBox(height: 16),
 
             // ── Status badge ──────────────────────────────────────────
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: _isPickable
-                    ? AppColors.statusPendingAdmin.withOpacity(0.08)
-                    : AppColors.statusInProgress.withOpacity(0.08),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(
-                  color: _isPickable
-                      ? AppColors.statusPendingAdmin.withOpacity(0.2)
-                      : AppColors.statusInProgress.withOpacity(0.2),
-                  width: 1,
-                ),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    _isPickable
-                        ? Icons.hourglass_empty_rounded
-                        : Icons.loop_rounded,
-                    color: _isPickable
-                        ? AppColors.statusPendingAdmin
-                        : AppColors.statusInProgress,
-                    size: 18,
-                  ),
-                  const SizedBox(width: 10),
-                  Text(
-                    _isPickable ? 'En attente d\'affectation' : 'Mission en cours',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: _isPickable
-                          ? AppColors.statusPendingAdmin
-                          : AppColors.statusInProgress,
+            Builder(
+              builder: (context) {
+                Color statusColor;
+                IconData statusIcon;
+                String statusText;
+                switch (_statut) {
+                  case 'en attente':
+                    statusColor = AppColors.statusPendingAdmin;
+                    statusIcon = Icons.hourglass_empty_rounded;
+                    statusText = 'En attente d\'affectation';
+                    break;
+                  case 'en cours':
+                    statusColor = AppColors.statusInProgress;
+                    statusIcon = Icons.loop_rounded;
+                    statusText = 'Mission en cours';
+                    break;
+                  case 'en vérification':
+                    statusColor = AppColors.statusVerification;
+                    statusIcon = Icons.pending_outlined;
+                    statusText = 'En vérification';
+                    break;
+                  case 'terminé':
+                    statusColor = AppColors.statusCompleted;
+                    statusIcon = Icons.check_circle_outline_rounded;
+                    statusText = 'Terminée';
+                    break;
+                  default:
+                    statusColor = AppColors.onSurfaceVariant;
+                    statusIcon = Icons.help_outline_rounded;
+                    statusText = _statut;
+                }
+
+                return Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: statusColor.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: statusColor.withOpacity(0.2),
+                      width: 1,
                     ),
                   ),
-                ],
-              ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        statusIcon,
+                        color: statusColor,
+                        size: 18,
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        statusText,
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: statusColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }
             ),
             const SizedBox(height: 28),
 
-            // ── Conditional buttons ───────────────────────────────────
-            if (_isPickable)
+            // ── Conditional buttons / Banners ─────────────────────────
+            if (_statut == 'en attente')
               // Accept mission button (for unassigned reports)
               PrimaryButton(
                 label: 'Accepter la mission',
                 icon: Icons.assignment_turned_in_rounded,
                 onPressed: () => _accepterMission(context),
               )
-            else ...[
+            else if (_statut == 'en cours') ...[
               // Navigate button (for active missions)
               Container(
                 width: double.infinity,
@@ -338,7 +361,72 @@ class MissionDetailScreen extends StatelessWidget {
                   );
                 },
               ),
-            ],
+            ] else if (_statut == 'en vérification')
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppColors.statusVerification.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: AppColors.statusVerification.withOpacity(0.2),
+                    width: 1,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.pending_outlined,
+                      color: AppColors.statusVerification,
+                      size: 22,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'En attente de vérification administrative',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.statusVerification,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            else if (_statut == 'terminé')
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppColors.statusCompleted.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: AppColors.statusCompleted.withOpacity(0.2),
+                    width: 1,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.check_circle_outline_rounded,
+                      color: AppColors.statusCompleted,
+                      size: 22,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Mission approuvée et terminée',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.statusCompleted,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
           ],
         ),
       ),

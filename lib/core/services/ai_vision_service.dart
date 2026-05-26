@@ -1,98 +1,131 @@
+import 'dart:convert';
 import 'dart:typed_data';
-// import 'package:google_generative_ai/google_generative_ai.dart';
-// import '../constants/api_keys.dart';
 
-/// Gemini-powered image validation for SmartClean City.
+import 'package:http/http.dart' as http;
+
+/// Three-state result for AI image validation.
+enum AiValidationResult { valid, rejected, apiError }
+
+/// Roboflow Litter Detection–powered image validation for SmartClean City.
 ///
-/// Two responsibilities:
-/// 1. Citizen side — confirm the photo shows garbage before submission.
-/// 2. Driver side  — confirm the photo shows a clean area before closing.
-///
-/// ┌─────────────────────────────────────────────────────────────────────────┐
-/// │  🔧 TESTING MODE — AI MOCKED                                          │
-/// │  Both methods return `true` after a 1-second delay.                    │
-/// │  Uncomment the real Gemini logic and remove the mock when ready.       │
-/// └─────────────────────────────────────────────────────────────────────────┘
+/// Model: litter-detection-rftek  (version 2)
+/// Endpoint: https://detect.roboflow.com/litter-detection-rftek/2
 class AiVisionService {
   AiVisionService._();
 
-  // static final _model = GenerativeModel(
-  //   model: 'gemini-1.5-flash',
-  //   apiKey: ApiKeys.geminiApiKey,
-  // );
+  // ── Roboflow API constants ──────────────────────────────────────────────────
+  static const String _apiKey = 'qcT3hSGjBzoHX49oJRg8';
+  static const String _endpointUrl =
+      'https://detect.roboflow.com/litter-detection-rftek/2';
 
-  // ── Citizen: Does the photo show garbage? ──────────────────────────────────
-  /// MOCKED — always returns true after 1s delay for UI effect.
-  static Future<bool> validateGarbageImage(Uint8List imageBytes) async {
-    // ═══════════════════════════════════════════════════════════════════════
-    // MOCK: Simulate AI processing delay, then approve.
-    await Future.delayed(const Duration(seconds: 1));
-    print('[AI MOCK] validateGarbageImage → true (testing mode)');
-    return true;
-    // ═══════════════════════════════════════════════════════════════════════
+  /// Confidence threshold — a prediction must exceed this value to be valid.
+  static const double _confidenceThreshold = 0.60;
 
-    // ── REAL GEMINI LOGIC (uncomment when ready) ──────────────────────────
-    // try {
-    //   final content = [
-    //     Content.multi([
-    //       TextPart(
-    //         'You are a municipal waste inspector for a city cleaning service. '
-    //         'Analyze this image. Does it show actionable urban waste, such as '
-    //         'piles of garbage on the street, overflowing public dumpsters, '
-    //         'outdoor garbage bags, or illegal outdoor dumping? '
-    //         'You MUST EXCLUDE indoor office trash cans, private indoor bins, '
-    //         'and very minor litter. '
-    //         'Answer strictly with "YES" or "NO" and nothing else.',
-    //       ),
-    //       DataPart('image/jpeg', imageBytes),
-    //     ]),
-    //   ];
-    //
-    //   final response = await _model.generateContent(content);
-    //   final rawText = response.text ?? '';
-    //   print('GEMINI RAW RESPONSE (garbage check): "$rawText"');
-    //
-    //   final answer = rawText.trim().toUpperCase();
-    //   return answer.contains('YES');
-    // } catch (e) {
-    //   print('GEMINI ERROR (garbage check): $e');
-    //   return false;
-    // }
+  // ── Core detection call ─────────────────────────────────────────────────────
+
+  /// Sends [imageBytes] to the Roboflow inference endpoint and returns whether
+  /// at least one litter detection with confidence > 60 % was found.
+  ///
+  /// Returns:
+  /// - [AiValidationResult.valid]    – litter detected with high confidence.
+  /// - [AiValidationResult.rejected] – no confident litter prediction found.
+  /// - [AiValidationResult.apiError] – network / HTTP error.
+  static Future<AiValidationResult> _detectLitter(
+    Uint8List imageBytes,
+  ) async {
+    try {
+      // Encode image to base64
+      final String base64Image = base64Encode(imageBytes);
+
+      // Build the full URL with the API key as a query parameter
+      final Uri uri = Uri.parse('$_endpointUrl?api_key=$_apiKey');
+
+      // POST request with base64 body
+      final http.Response response = await http
+          .post(
+            uri,
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            body: base64Image,
+          )
+          .timeout(const Duration(seconds: 30));
+
+      if (response.statusCode != 200) {
+        // ignore: avoid_print
+        print(
+          '⚠️ ROBOFLOW API ERROR: HTTP ${response.statusCode} — ${response.body}',
+        );
+        return AiValidationResult.apiError;
+      }
+
+      // Parse the JSON response
+      final Map<String, dynamic> jsonBody =
+          jsonDecode(response.body) as Map<String, dynamic>;
+
+      final List<dynamic> predictions =
+          (jsonBody['predictions'] as List<dynamic>?) ?? [];
+
+      // Check if any prediction exceeds the confidence threshold
+      final bool litterFound = predictions.any((dynamic p) {
+        final double confidence =
+            ((p as Map<String, dynamic>)['confidence'] as num?)?.toDouble() ??
+            0.0;
+        return confidence > _confidenceThreshold;
+      });
+
+      if (litterFound) {
+        // ignore: avoid_print
+        print('✅ Roboflow: litter detected with confidence > 60 %');
+        return AiValidationResult.valid;
+      } else {
+        // ignore: avoid_print
+        print(
+          '🚫 Roboflow: no confident litter detection '
+          '(${predictions.length} prediction(s) below threshold)',
+        );
+        return AiValidationResult.rejected;
+      }
+    } catch (e) {
+      // ignore: avoid_print
+      print('⚠️ ROBOFLOW EXCEPTION: $e');
+      return AiValidationResult.apiError;
+    }
   }
 
-  // ── Driver: Does the photo show a clean place? ─────────────────────────────
-  /// MOCKED — always returns true after 1s delay for UI effect.
-  static Future<bool> validateCleanImage(Uint8List imageBytes) async {
-    // ═══════════════════════════════════════════════════════════════════════
-    // MOCK: Simulate AI processing delay, then approve.
-    await Future.delayed(const Duration(seconds: 1));
-    print('[AI MOCK] validateCleanImage → true (testing mode)');
-    return true;
-    // ═══════════════════════════════════════════════════════════════════════
+  // ── Public API (preserves existing call-sites) ──────────────────────────────
 
-    // ── REAL GEMINI LOGIC (uncomment when ready) ──────────────────────────
-    // try {
-    //   final content = [
-    //     Content.multi([
-    //       TextPart(
-    //         'You are a strict quality controller. '
-    //         'Does this image show a clean environment without any visible '
-    //         'piles of garbage or waste? '
-    //         'Answer ONLY with "YES" or "NO".',
-    //       ),
-    //       DataPart('image/jpeg', imageBytes),
-    //     ]),
-    //   ];
-    //
-    //   final response = await _model.generateContent(content);
-    //   final rawText = response.text ?? '';
-    //   print('GEMINI RAW RESPONSE (clean check): "$rawText"');
-    //
-    //   final answer = rawText.trim().toUpperCase();
-    //   return answer.contains('YES');
-    // } catch (e) {
-    //   print('GEMINI ERROR (clean check): $e');
-    //   return false;
-    // }
+  /// Validates that the submitted image contains garbage / litter.
+  ///
+  /// Returns [AiValidationResult.valid] when the model detects litter with
+  /// confidence > 60 %, [AiValidationResult.rejected] otherwise.
+  /// Returns [AiValidationResult.apiError] on network or server failure.
+  static Future<AiValidationResult> validateGarbageImage(
+    Uint8List imageBytes,
+  ) {
+    return _detectLitter(imageBytes);
+  }
+
+  /// Validates that the submitted image shows a clean space (no litter).
+  ///
+  /// Returns [AiValidationResult.valid] when the model finds NO litter with
+  /// confidence > 60 % (i.e. the space looks clean).
+  /// Returns [AiValidationResult.rejected] when litter is still detected.
+  /// Returns [AiValidationResult.apiError] on network or server failure.
+  static Future<AiValidationResult> validateCleanImage(
+    Uint8List imageBytes,
+  ) async {
+    final AiValidationResult result = await _detectLitter(imageBytes);
+
+    // For a "clean" validation we invert the litter signal:
+    //   - No litter found  → valid (space is clean)
+    //   - Litter found     → rejected (space still dirty)
+    //   - API error        → apiError (pass through)
+    switch (result) {
+      case AiValidationResult.valid:
+        return AiValidationResult.rejected; // litter still present → not clean
+      case AiValidationResult.rejected:
+        return AiValidationResult.valid; // no litter → clean
+      case AiValidationResult.apiError:
+        return AiValidationResult.apiError;
+    }
   }
 }

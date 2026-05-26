@@ -1,11 +1,13 @@
 import 'dart:convert';
 import 'dart:ui' as ui;
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/l10n/app_localizations.dart';
+import '../../core/services/geocoding_service.dart';
 import '../../shared/widgets/primary_button.dart';
 import 'mission_active_screen.dart';
 
@@ -188,7 +190,7 @@ class _DriverMapState extends State<DriverMap> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.primary,
+        backgroundColor: AppColors.driverPrimary,
         elevation: 0,
         automaticallyImplyLeading: false,
         title: Builder(
@@ -396,43 +398,114 @@ class _DriverMapState extends State<DriverMap> {
                 ),
                 const SizedBox(height: 16),
 
-                // Address
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: AppColors.surfaceContainerLow,
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 38,
-                        height: 38,
-                        decoration: BoxDecoration(
-                          color: AppColors.primary.withAlpha(25),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: const Icon(
-                          Icons.location_on_rounded,
-                          color: AppColors.primary,
-                          size: 20,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          adresse,
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
-                            color: AppColors.onSurface,
+                // Address + Geocoded Neighbourhood
+                (() {
+                  final lat = (data['latitude'] as num?)?.toDouble();
+                  final lng = (data['longitude'] as num?)?.toDouble();
+                  return Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceContainerLow,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 38,
+                          height: 38,
+                          decoration: BoxDecoration(
+                            color: accentColor.withAlpha(25),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Icon(
+                            Icons.location_on_rounded,
+                            color: accentColor,
+                            size: 20,
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // ── Geocoded Neighbourhood (primary heading) ───────
+                              if (lat != null && lng != null)
+                                FutureBuilder<String>(
+                                  future: GeocodingService.getNeighborhood(lat, lng),
+                                  builder: (ctx, snap) {
+                                    // Loading
+                                    if (snap.connectionState == ConnectionState.waiting) {
+                                      return Padding(
+                                        padding: const EdgeInsets.only(bottom: 4),
+                                        child: Row(
+                                          children: [
+                                            const SizedBox(
+                                              width: 12,
+                                              height: 12,
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 1.5,
+                                                color: AppColors.onSurfaceVariant,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 6),
+                                            Text(
+                                              'Chargement...',
+                                              style: GoogleFonts.plusJakartaSans(
+                                                fontSize: 12,
+                                                color: AppColors.onSurfaceVariant,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                    }
+                                    // Error / no data
+                                    if (snap.hasError || !snap.hasData) {
+                                      return Padding(
+                                        padding: const EdgeInsets.only(bottom: 4),
+                                        child: Text(
+                                          adresse,
+                                          style: GoogleFonts.plusJakartaSans(
+                                            fontSize: 13,
+                                            fontStyle: FontStyle.italic,
+                                            color: AppColors.onSurfaceVariant,
+                                          ),
+                                        ),
+                                      );
+                                    }
+                                    // ✅ Success — geocoded name as large primary heading
+                                    return Padding(
+                                      padding: const EdgeInsets.only(bottom: 2),
+                                      child: Text(
+                                        snap.data!,
+                                        style: GoogleFonts.manrope(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w800,
+                                          color: AppColors.onSurface,
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              // Raw address always shown below as muted secondary
+                              Text(
+                                adresse,
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w400,
+                                  color: AppColors.onSurfaceVariant.withOpacity(0.7),
+                                ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                })(),
                 const SizedBox(height: 16),
 
                 // "Before" photo
@@ -475,7 +548,7 @@ class _DriverMapState extends State<DriverMap> {
                           .doc(docId)
                           .update({
                             'statut': 'en cours',
-                            'chauffeur_id': 'chauffeur_mock',
+                            'chauffeur_id': FirebaseAuth.instance.currentUser?.uid ?? 'chauffeur_mock',
                           });
                       if (ctx.mounted) Navigator.of(ctx).pop();
                       if (context.mounted) {
